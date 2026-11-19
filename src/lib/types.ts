@@ -98,7 +98,8 @@ export type CareerField =
   | "Machine Learning"
   | "Data Science"
   | "Cybersecurity"
-  | "Cloud Computing";
+  | "Cloud Computing"
+  | "IT Support";
 
 /** Where a listing came from. Demo listings are fictional; live listings come from a public job-board API. */
 export type JobSource =
@@ -119,7 +120,7 @@ export interface CareerOpportunity {
   id: string;
   company: string;
   role: string;
-  type: "Internship" | "Co-op" | "Full-time (new grad)";
+  type: "Internship" | "Co-op" | "Full-time (new grad)" | "Part-time (on-campus)";
   field: CareerField;
   location: string;
   region: "Washington, DC" | "Northern Virginia" | "Maryland";

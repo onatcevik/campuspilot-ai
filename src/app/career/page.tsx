@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Bookmark, BookmarkCheck, Briefcase, Calculator, CalendarCheck, CircleHelp, Database, ExternalLink, FileText, MapPin, PanelRightOpen, Plus, Search, RefreshCw, ShieldCheck, ShieldQuestion, ShieldX, Sparkles, X } from "lucide-react";
+import { Bookmark, BookmarkCheck, Briefcase, Building2, Calculator, CalendarCheck, CircleHelp, Database, ExternalLink, FileText, MapPin, PanelRightOpen, Plus, Search, RefreshCw, ShieldCheck, ShieldQuestion, ShieldX, Sparkles, X } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useFeedback } from "@/components/feedback";
@@ -9,7 +9,7 @@ import { Badge, Card, IconBubble, PageHeader, ProgressRing, SourceLabel, type To
 import { CareerDetailDrawer } from "@/components/career/CareerDetailDrawer";
 import { filterListings, type SourceFilter } from "@/lib/career-state";
 import { workAuthGuidance } from "@/lib/career-guidance";
-import { OPPORTUNITIES, SKILL_LIBRARY } from "@/lib/demo-data";
+import { CAMPUS_OPPORTUNITIES, OPPORTUNITIES, SKILL_LIBRARY } from "@/lib/demo-data";
 import { useLiveJobs } from "@/lib/jobs/client";
 import { isStale } from "@/lib/jobs/normalize";
 import { deriveStudentProfile } from "@/lib/profile";
@@ -32,7 +32,7 @@ const STATUSES: { v: ApplicationStatus; label: string }[] = [
 ];
 const fieldTone: Record<CareerField, Tone> = {
   "Software Engineering": "lavender", "Artificial Intelligence": "blush", "Machine Learning": "powder",
-  "Data Science": "butter", Cybersecurity: "sage", "Cloud Computing": "powder",
+  "Data Science": "butter", Cybersecurity: "sage", "Cloud Computing": "powder", "IT Support": "butter",
 };
 
 export default function CareerNavigator() {
@@ -63,7 +63,9 @@ export default function CareerNavigator() {
   const top3 = scored.filter((x) => !x.m.insufficientData).slice(0, 3);
   const avg = top3.length ? Math.round(top3.reduce((s, x) => s + x.m.score, 0) / top3.length) : 0;
   const isF1 = profile.isF1;
-  const detail = scored.find((x) => x.o.id === detailId) ?? null;
+  // Campus opportunities use the same deterministic matcher and the same Fit Analysis drawer.
+  const campus = useMemo(() => CAMPUS_OPPORTUNITIES.map((o) => ({ o, m: matchOpportunity(o, career) })), [career]);
+  const detail = [...campus, ...scored].find((x) => x.o.id === detailId) ?? null;
 
   const toggleIn = <T,>(list: T[], v: T) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
 
@@ -79,6 +81,56 @@ export default function CareerNavigator() {
     <div>
       <PageHeader eyebrow="Module 4" title="Career Navigator" icon={Briefcase} tone="blush"
         subtitle="Personalized matching for DC, Northern Virginia and Maryland. Fictional demo listings plus optional real postings from public job boards. Work authorization is never assumed." />
+
+      {/* Campus Opportunities — always above external internships */}
+      <section aria-label="Campus opportunities" className="mb-6 rounded-3xl border-2 border-butter-mid bg-butter/30 p-4 md:p-5">
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <h2 className="flex items-center gap-2 font-display text-xl font-semibold"><Building2 size={18} className="text-butter-deep" /> Campus Opportunities</h2>
+          <span className="text-xs text-muted">Example on-campus roles. Not real vacancies.</span>
+        </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          {campus.map(({ o, m }) => {
+            const isSaved = saved.includes(o.id);
+            return (
+              <div key={o.id} className="card flex flex-col p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap gap-1.5">
+                      <Badge tone="butter">Campus Priority</Badge>
+                      <SourceLabel kind="demo" />
+                      <Badge tone="neutral">{o.type}</Badge>
+                    </div>
+                    <h3 className="font-display mt-2 text-xl font-semibold leading-snug">{o.role}</h3>
+                    <p className="text-sm text-muted">{o.company}</p>
+                    <p className="mt-1 flex items-center gap-1 text-xs text-muted"><MapPin size={12} /> {o.location} · {o.remote}</p>
+                    <p className="mt-1 text-[11px] text-muted">Fictional demo listing · no application link</p>
+                  </div>
+                  <div className="shrink-0 text-center">
+                    <ProgressRing pct={m.score} size={64} stroke={7} color={m.score >= 70 ? "var(--color-sage-deep)" : m.score >= 45 ? "var(--color-butter-deep)" : "var(--color-blush-deep)"} track="var(--color-line)">
+                      <span className="text-sm font-bold">{m.score}%</span>
+                    </ProgressRing>
+                    <span className="text-[10px] font-semibold text-muted">match</span>
+                  </div>
+                </div>
+                <p className="mt-2 text-sm text-ink/80">{o.description}</p>
+                <div className="mt-3 flex flex-wrap gap-1">
+                  {o.requiredSkills.map((sk) => <span key={sk} className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${m.matchedRequired.includes(sk) ? "bg-sage text-sage-deep" : "bg-blush text-blush-deep"}`}>{sk}</span>)}
+                  {o.preferredSkills.map((sk) => <span key={sk} className={`rounded-full border px-2 py-0.5 text-[11px] ${m.matchedPreferred.includes(sk) ? "border-sage-mid text-sage-deep" : "border-line text-muted"}`}>{sk}</span>)}
+                </div>
+                <div className="mt-auto flex flex-wrap items-center gap-2 pt-4">
+                  <button onClick={() => setDetailId(o.id)} className="inline-flex items-center gap-1.5 rounded-full bg-lavender px-3 py-1.5 text-xs font-semibold text-lavender-deep transition hover:bg-lavender-mid">
+                    <PanelRightOpen size={13} /> Fit analysis & tasks
+                  </button>
+                  <button onClick={() => { toggleSaved(o.id); toast(isSaved ? "Removed from saved" : "Saved opportunity", o.role, isSaved ? "info" : "success"); }}
+                    className={`inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold transition ${isSaved ? "bg-blush text-blush-deep" : "border border-line bg-paper hover:bg-blush/50"}`}>
+                    {isSaved ? <BookmarkCheck size={14} /> : <Bookmark size={14} />} {isSaved ? "Saved" : "Save"}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
 
       <div className="grid gap-6 xl:grid-cols-[340px_1fr]">
         {/* Profile */}
@@ -162,7 +214,7 @@ export default function CareerNavigator() {
           </div>
           <div className="mb-4 flex flex-wrap items-center gap-2">
             <button onClick={() => setSavedOnly(false)} className={`rounded-full px-4 py-1.5 text-sm font-semibold ${!savedOnly ? "bg-ink text-white" : "border border-line bg-paper text-muted"}`}>All ({all.length})</button>
-            <button onClick={() => setSavedOnly(true)} className={`rounded-full px-4 py-1.5 text-sm font-semibold ${savedOnly ? "bg-ink text-white" : "border border-line bg-paper text-muted"}`}>Saved ({saved.length})</button>
+            <button onClick={() => setSavedOnly(true)} className={`rounded-full px-4 py-1.5 text-sm font-semibold ${savedOnly ? "bg-ink text-white" : "border border-line bg-paper text-muted"}`}>Saved ({all.filter((o) => saved.includes(o.id)).length})</button>
             <select value={authFilter} onChange={(e) => setAuthFilter(e.target.value as WorkAuthStatus | "all")} className="rounded-full border border-line bg-paper px-3 py-1.5 text-sm" aria-label="Filter by work authorization">
               <option value="all">Any work-authorization status</option>
               {(Object.keys(authMeta) as WorkAuthStatus[]).map((k) => <option key={k} value={k}>{authMeta[k].label}</option>)}

@@ -174,7 +174,7 @@ export const DEFAULT_INTL: IntlProfile = {
 
 // ---------- Career (fictional organizations and listings) ----------
 export const DEFAULT_CAREER: CareerProfile = {
-  skills: ["TypeScript", "React", "Python", "SQL", "Git", "Figma", "HTML/CSS", "Statistics"],
+  skills: ["TypeScript", "React", "Python", "SQL", "Git", "Figma", "HTML/CSS", "Statistics", "Communication", "Basic Networking", "IT Support"],
   interests: ["Software Engineering", "Artificial Intelligence", "Machine Learning"],
   preferredRegions: ["Washington, DC", "Northern Virginia"],
 };
@@ -184,6 +184,7 @@ export const SKILL_LIBRARY = [
   "PostgreSQL", "Git", "Docker", "Kubernetes", "AWS", "Azure", "Linux", "Networking", "Security+",
   "PyTorch", "TensorFlow", "scikit-learn", "Pandas", "Statistics", "Machine Learning", "LLMs",
   "Data Visualization", "Figma", "HTML/CSS", "REST APIs", "Terraform", "Splunk", "Agile",
+  "IT Support", "Troubleshooting", "Communication", "Basic Networking",
 ];
 
 const DEMO_LISTINGS: Omit<CareerOpportunity, "source">[] = [
@@ -246,3 +247,27 @@ const DEMO_LISTINGS: Omit<CareerOpportunity, "source">[] = [
 ];
 
 export const OPPORTUNITIES: CareerOpportunity[] = DEMO_LISTINGS.map((o) => ({ ...o, source: { kind: "demo" } }));
+
+/**
+ * Fictional on-campus example for the Career Navigator's "Campus Opportunities" section.
+ * NOT a real Bay Atlantic University vacancy: no application URL. Kept separate from OPPORTUNITIES so the
+ * dashboard, Assistant and alerts are unchanged.
+ */
+export const CAMPUS_OPPORTUNITIES: CareerOpportunity[] = [
+  {
+    id: "campus-it-1",
+    company: "Bay Atlantic University · Campus IT (fictional demo)",
+    role: "Student IT Support Assistant",
+    type: "Part-time (on-campus)",
+    field: "IT Support",
+    location: "Bay Atlantic University, Washington, DC",
+    region: "Washington, DC",
+    remote: "On-site",
+    requiredSkills: ["IT Support", "Troubleshooting", "Communication"],
+    preferredSkills: ["Basic Networking"],
+    workAuth: "verification-required",
+    workAuthNote: "Fictional demo listing. For F-1 students, confirm on-campus employment eligibility with your DSO.",
+    description: "Help students and staff with basic technical issues, classroom equipment, and campus IT services.",
+    source: { kind: "demo" },
+  },
+];

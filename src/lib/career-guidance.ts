@@ -5,7 +5,7 @@ import type { StudentProfile } from "./profile";
 import type { CareerOpportunity } from "./types";
 
 export interface WorkAuthGuidance {
-  pathway: "CPT" | "OPT" | "none" | "unknown";
+  pathway: "CPT" | "OPT" | "on-campus" | "none" | "unknown";
   headline: string;
   points: string[];
   sourceIds: string[];
@@ -29,6 +29,20 @@ export function workAuthGuidance(o: CareerOpportunity, p: StudentProfile): WorkA
       headline: "Listing states a restriction",
       points: [`The listing says: “${o.workAuthNote}” CPT or OPT does not change an employer's stated eligibility requirement.`],
       sourceIds: [],
+      employerQuestion: null,
+    };
+  }
+
+  // On-campus employment is a separate F-1 category (not CPT/OPT). We don't state limits here; the DSO confirms.
+  if (o.type === "Part-time (on-campus)") {
+    return {
+      pathway: "on-campus",
+      headline: "On-campus job: confirm eligibility with your DSO",
+      points: [
+        "On-campus employment for F-1 students falls under different rules than CPT and OPT.",
+        "Before accepting, confirm with your DSO that you're eligible and what hour limits apply to you.",
+      ],
+      sourceIds: ["ecfr", "sits-work"],
       employerQuestion: null,
     };
   }
