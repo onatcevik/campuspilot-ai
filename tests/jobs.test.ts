@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   detectRegion, detectType, extractSkills, isStale, LIVE_WORK_AUTH_NOTE, normalizeGreenhouse, normalizeLever, verifiedUrl,
 } from "@/lib/jobs/normalize";
-import { fetchJobFeed, parseBoards } from "@/lib/jobs/providers";
+import { cacheTtlMs, fetchJobFeed, parseBoards } from "@/lib/jobs/providers";
 
 const FETCHED = "2026-11-19T12:00:00.000Z";
 
@@ -139,6 +139,11 @@ describe("provider layer", () => {
       { id: "acme", provider: "greenhouse", ok: true, count: 2 },
       { id: "shield", provider: "lever", ok: false, count: 0, error: "HTTP 503" },
     ]);
+  });
+
+  it("caches full results for 30 min but failed results only briefly", () => {
+    expect(cacheTtlMs({ providers: [{ id: "a", provider: "lever", ok: true, count: 3 }] })).toBe(30 * 60_000);
+    expect(cacheTtlMs({ providers: [{ id: "a", provider: "lever", ok: true, count: 3 }, { id: "b", provider: "lever", ok: false, count: 0, error: "timeout" }] })).toBe(2 * 60_000);
   });
 
   it("is a no-op when nothing is configured", async () => {

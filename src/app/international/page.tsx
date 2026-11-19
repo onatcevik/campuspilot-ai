@@ -34,9 +34,14 @@ export default function InternationalAdvisor() {
   const [q, setQ] = useState("");
   const [answer, setAnswer] = useState<{ passages: Passage[]; ai: string | null } | null>(null);
   const [asking, setAsking] = useState(false);
+  // Temporary, non-persisted preview of the timeline using the Graduation Planner date. The stored I-20 date never changes here.
+  const [previewEnd, setPreviewEnd] = useState<string | null>(null);
 
   const v = useMemo(() => validatePlan(plan), [plan]);
-  const milestones = useMemo(() => buildMilestones(intl), [intl]);
+  const milestones = useMemo(() => {
+    const ms = buildMilestones(previewEnd ? { ...intl, programEndDate: previewEnd } : intl);
+    return previewEnd ? ms.map((m) => (m.id === "program-end" ? { ...m, title: "Planned completion (preview, not your I-20 date)" } : m)) : ms;
+  }, [intl, previewEnd]);
   const done = CHECKLIST.filter((c) => intl.checklist[c.id]).length;
   const planEnd = v.projectedTerm ? termToEndISO(v.projectedTerm) : null;
   const mismatch = intl.status === "F-1" && planEnd && planEnd > intl.programEndDate;
@@ -105,9 +110,14 @@ export default function InternationalAdvisor() {
             <div className={`rounded-2xl p-3 text-xs ${mismatch ? "bg-blush text-blush-deep" : "bg-sage/70 text-sage-deep"}`}>
               <p className="font-semibold">Graduation Planner link</p>
               <p className="mt-0.5">Academic plan projects <b>{termToGraduationDate(v.projectedTerm)}</b>. {mismatch ? "That is after your I-20 end date — ask your DSO about a program extension before the end date." : "Consistent with your I-20 end date."}</p>
-              {planEnd && planEnd !== intl.programEndDate && (
-                <button className="mt-2 inline-flex items-center gap-1 font-semibold underline" onClick={() => { set({ programEndDate: planEnd }); toast("Timeline synced with Graduation Planner", `Program end set to ${fmtDate(planEnd)} for planning (your I-20 is unchanged).`, "info"); }}>
+              {planEnd && planEnd !== intl.programEndDate && !previewEnd && (
+                <button className="mt-2 inline-flex items-center gap-1 font-semibold underline" onClick={() => { setPreviewEnd(planEnd); toast("Previewing timeline with plan date", `Showing dates for ${fmtDate(planEnd)}. Your I-20 date (${fmtDate(intl.programEndDate)}) is not changed.`, "info"); }}>
                   <RefreshCw size={11} /> Preview timeline with plan date
+                </button>
+              )}
+              {previewEnd && (
+                <button className="mt-2 inline-flex items-center gap-1 font-semibold underline" onClick={() => setPreviewEnd(null)}>
+                  <RefreshCw size={11} /> Back to I-20 date
                 </button>
               )}
             </div>
@@ -120,6 +130,11 @@ export default function InternationalAdvisor() {
             <div className="flex items-center gap-2"><CalendarDays size={18} className="text-powder-deep" /><h2 className="font-display text-xl font-semibold">Planning timeline</h2></div>
             <div className="flex gap-1.5"><SourceLabel kind="verified" /><SourceLabel kind="guidance" /></div>
           </div>
+          {previewEnd && intl.status === "F-1" && (
+            <p className="mb-3 rounded-2xl border border-butter-mid bg-butter/70 px-3 py-2 text-xs">
+              <b>Preview only:</b> dates below use your planned completion ({fmtDate(previewEnd)}). Your I-20 end date stays {fmtDate(intl.programEndDate)} until your DSO issues an updated I-20. Only then should you change it in your profile.
+            </p>
+          )}
           {intl.status !== "F-1" ? (
             <div className="rounded-2xl bg-cream p-6 text-sm text-muted">
               Date calculations apply only to F-1 students. {intl.status === "Other / unsure" ? "Please confirm your status with your international student office — we won't guess deadlines." : "Switch status to F-1 to preview the CPT/OPT timeline."}

@@ -23,8 +23,16 @@ export function parseBoards(env: string | undefined): string[] {
   return (env ?? "").split(",").map((s) => s.trim()).filter((s) => SLUG.test(s));
 }
 
+// Some public boards return multi-MB payloads; measured 3–21 s for a ~6 MB Lever response.
+export const PROVIDER_TIMEOUT_MS = 30_000;
+
+/** Full results are cached 30 min; if any board failed, retry after 2 min instead of hiding live data for 30 min. */
+export function cacheTtlMs(feed: Pick<JobFeed, "providers">): number {
+  return feed.providers.every((p) => p.ok) ? 30 * 60_000 : 2 * 60_000;
+}
+
 async function getJson(url: string): Promise<unknown> {
-  const res = await fetch(url, { signal: AbortSignal.timeout(10_000), headers: { Accept: "application/json" }, cache: "no-store" });
+  const res = await fetch(url, { signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS), headers: { Accept: "application/json" }, cache: "no-store" });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }

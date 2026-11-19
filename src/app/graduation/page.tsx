@@ -123,8 +123,8 @@ export default function GraduationPlanner() {
       </AnimatePresence>
 
       <div className="grid gap-6 xl:grid-cols-[1fr_320px]">
-        {/* Roadmap */}
-        <div>
+        {/* Roadmap — min-w-0 lets the horizontally scrolling term row scroll inside the grid column instead of widening the page */}
+        <div className="min-w-0">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="font-display text-2xl font-semibold">Semester roadmap</h2>
             <div className="flex gap-2">
