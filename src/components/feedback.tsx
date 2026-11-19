@@ -3,7 +3,7 @@
 import confetti from "canvas-confetti";
 import { AnimatePresence, MotionConfig, motion } from "framer-motion";
 import { Check, Copy, Mail, PartyPopper, X } from "lucide-react";
-import { createContext, useCallback, useContext, useState } from "react";
+import { createContext, useCallback, useContext, useRef, useState } from "react";
 import { Button, inputCls, SourceLabel } from "./ui";
 
 type ToastTone = "success" | "info" | "warning";
@@ -25,6 +25,9 @@ export const useFeedback = () => {
 
 const BALLOON_COLORS = ["#cfc3f2", "#bcd8ba", "#b7d2ee", "#f2bccb", "#f3df8e"];
 const CONFETTI_COLORS = ["#6f5cc2", "#4f8558", "#46729f", "#bb5672", "#e8c547", "#cfc3f2", "#f2bccb"];
+/** Pastel pink, lavender and mint for the per-assignment "NICE WORK!" celebration. */
+const NICE_BALLOONS = ["#f6bfd0", "#cfc3f2", "#bfe6d2"];
+const NICE_MS = 3000;
 
 interface Balloon { id: number; left: number; color: string; delay: number; duration: number; scale: number; sway: number }
 
@@ -32,6 +35,8 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [balloons, setBalloons] = useState<Balloon[]>([]);
   const [bigWin, setBigWin] = useState(false);
+  const [nice, setNice] = useState<{ id: number; reduce: boolean } | null>(null);
+  const niceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -44,7 +49,20 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
   const celebrate = useCallback((big = false) => {
     const reduce = typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const fire = (opts: confetti.Options) => confetti({ colors: CONFETTI_COLORS, disableForReducedMotion: true, ...opts });
-    fire({ particleCount: big ? 160 : 90, spread: big ? 110 : 75, origin: { y: 0.7 }, startVelocity: big ? 55 : 42 });
+    if (!big) {
+      // Per-assignment celebration: "NICE WORK!" overlay (non-blocking, ~3s) + confetti from both sides.
+      setNice({ id: Date.now(), reduce });
+      if (niceTimer.current) clearTimeout(niceTimer.current);
+      niceTimer.current = setTimeout(() => setNice(null), NICE_MS);
+      fire({ particleCount: 70, angle: 60, spread: 75, startVelocity: 62, origin: { x: 0, y: 0.75 } });
+      fire({ particleCount: 70, angle: 120, spread: 75, startVelocity: 62, origin: { x: 1, y: 0.75 } });
+      setTimeout(() => {
+        fire({ particleCount: 50, angle: 50, spread: 90, startVelocity: 48, origin: { x: 0, y: 0.45 }, scalar: 0.9 });
+        fire({ particleCount: 50, angle: 130, spread: 90, startVelocity: 48, origin: { x: 1, y: 0.45 }, scalar: 0.9 });
+      }, 300);
+    } else {
+      fire({ particleCount: 160, spread: 110, origin: { y: 0.7 }, startVelocity: 55 });
+    }
     if (big) {
       setTimeout(() => fire({ particleCount: 90, angle: 60, spread: 70, origin: { x: 0, y: 0.75 } }), 250);
       setTimeout(() => fire({ particleCount: 90, angle: 120, spread: 70, origin: { x: 1, y: 0.75 } }), 450);
@@ -52,13 +70,14 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
       setBigWin(true);
     }
     if (reduce) return;
-    const count = big ? 16 : 7;
+    const count = big ? 16 : 10;
+    const palette = big ? BALLOON_COLORS : NICE_BALLOONS;
     const batch = Array.from({ length: count }, (_, i) => ({
       id: Date.now() + i + Math.random(),
       left: 4 + Math.random() * 90,
-      color: BALLOON_COLORS[i % BALLOON_COLORS.length],
-      delay: Math.random() * (big ? 1.2 : 0.5),
-      duration: 3.2 + Math.random() * 1.8,
+      color: palette[i % palette.length],
+      delay: Math.random() * (big ? 1.2 : 0.4),
+      duration: big ? 3.2 + Math.random() * 1.8 : 2.4 + Math.random() * 0.6,
       scale: 0.75 + Math.random() * 0.6,
       sway: (Math.random() - 0.5) * 80,
     }));
@@ -102,6 +121,27 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
           </motion.div>
         ))}
       </div>
+
+      {/* "NICE WORK!" — per-assignment celebration. Never blocks clicks (pointer-events: none). */}
+      <AnimatePresence>
+        {nice && (
+          <motion.div key={nice.id} className="pointer-events-none fixed inset-0 z-[61] flex items-center justify-center px-4"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.35 } }}>
+            <motion.div
+              role="status" aria-live="polite"
+              initial={nice.reduce ? false : { scale: 0.3, rotate: -8, y: 20 }}
+              animate={{ scale: 1, rotate: 0, y: 0 }}
+              transition={nice.reduce ? { duration: 0 } : { type: "spring", stiffness: 420, damping: 11, mass: 0.8 }}
+              className="rounded-[2rem] border border-white/80 bg-white/80 px-8 py-6 text-center shadow-lift backdrop-blur-md md:px-14 md:py-9"
+            >
+              <p className="font-display bg-gradient-to-r from-blush-deep via-lavender-deep to-sage-deep bg-clip-text text-5xl font-bold tracking-tight text-transparent sm:text-6xl md:text-7xl">
+                NICE WORK!
+              </p>
+              <p className="mt-2 text-base font-semibold text-ink/70 md:text-lg">One step closer to your goals!</p>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Toasts */}
       <div className="fixed bottom-4 right-4 z-[70] flex w-[min(360px,calc(100vw-2rem))] flex-col gap-2">
