@@ -21,7 +21,16 @@
 - [x] Live job layer (Greenhouse and Lever public APIs). Checked end to end against real boards: real DC roles, verified URLs, a failing board isolated, stale postings flagged
 - [x] 61 Vitest tests passing. `tsc`, `eslint` and `next build` all pass
 
+## CampusPilot Assistant (not yet committed)
+- [x] Typed context layer that pulls only the relevant modules into numbered facts (no name, notes or raw state sent to the model)
+- [x] Deterministic answers for: graduation + summer internship, next-semester priorities, skills for top matches, this week, advisor/DSO questions, CPT/OPT
+- [x] Gemini answer validator: grounded numbers, valid citations, no eligibility decisions, no sponsorship claims, CPT/OPT answers must cite a source
+- [x] Actions: Study Board tasks (confirmation required, deduplicated, future due dates only), email drafts, in-app navigation only
+- [x] Dashboard "Ask CampusPilot" entry (handoff via sessionStorage, not the URL). Mobile layout checked at 375 px
+- [x] 29 new tests (91 total). The safety checks were mutation-tested: disabling each one makes a test fail
+
 ## Remaining / nice to have
+- [ ] Gemini assistant path not tested with a real key (validator and orchestration are covered by unit tests with mocked model responses)
 - [ ] Test the Gemini fit analysis with a real key (sanitizer is unit-tested; only the fallback has been checked in the UI)
 - [ ] Live listings: skill extraction is keyword-based, so many real postings yield few skills and show "—" for the score
 - [ ] Drag and drop in the roadmap (a dropdown works today)

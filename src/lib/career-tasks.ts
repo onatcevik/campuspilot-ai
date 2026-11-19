@@ -46,4 +46,4 @@ export function defaultDue(daysFromNow: number, now = new Date()): Date {
 }
 
 export const isAlreadyOnBoard = (assignments: Assignment[], o: CareerOpportunity, title: string) =>
-  assignments.some((a) => a.origin?.opportunityId === o.id && a.title === title);
+  assignments.some((a) => a.origin?.module === "career" && a.origin.opportunityId === o.id && a.title === title);

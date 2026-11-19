@@ -63,7 +63,7 @@ export interface Assignment {
   estimatedHours: number;
   notes?: string;
   /** Set when a task was created from another module (e.g. Career Navigator) after user confirmation. */
-  origin?: { module: "career"; opportunityId: string };
+  origin?: { module: "career"; opportunityId: string } | { module: "assistant"; actionId: string };
 }
 
 export type MilestoneKind = "verified-rule" | "planning-guidance";

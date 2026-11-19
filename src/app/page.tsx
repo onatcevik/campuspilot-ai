@@ -5,6 +5,7 @@ import { ArrowRight, Bot, Briefcase, CalendarClock, Globe2, GraduationCap, Noteb
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { NAV } from "@/components/AppShell";
+import { AskCampusPilot } from "@/components/AskCampusPilot";
 import { RecommendationList } from "@/components/RecommendationList";
 import { Badge, Button, Card, IconBubble, ProgressBar, ProgressRing, SourceLabel, toneBg } from "@/components/ui";
 import { askAI, useAiStatus } from "@/lib/ai-client";
@@ -77,6 +78,8 @@ export default function Dashboard() {
           </div>
         </div>
       </motion.section>
+
+      <AskCampusPilot />
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Priorities */}

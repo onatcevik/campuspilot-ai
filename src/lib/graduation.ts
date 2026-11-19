@@ -149,7 +149,7 @@ export const SCENARIOS: Scenario[] = [
 
 const depthMemo: Record<string, number> = {};
 /** Length of the longest chain of courses that depend on this one (critical path). */
-function chainDepth(id: string): number {
+export function chainDepth(id: string): number {
   if (depthMemo[id] !== undefined) return depthMemo[id];
   const deps = dependentsOf(id).filter((d) => REMAINING_COURSE_IDS.includes(d));
   depthMemo[id] = 1 + (deps.length ? Math.max(...deps.map(chainDepth)) : 0);
