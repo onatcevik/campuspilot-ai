@@ -1,36 +1,59 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# CampusPilot AI
 
-## Getting Started
+**Plan smarter. Stay on track. Graduate with confidence.**
 
-First, run the development server:
+CampusPilot AI is a student operating system built for a hackathon. It ties together assignments, graduation planning, F-1/CPT/OPT planning and career discovery, and raises risks and opportunities on its own instead of waiting for questions.
+
+> Hackathon prototype. The student (Alex Morgan), courses, degree requirements and job listings are all **fictional**. It is not affiliated with or endorsed by Bay Atlantic University. The LearningBAU integration is **simulated**. Nothing here is legal or immigration advice.
+
+## Quick start
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000. The app runs with no API key.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Optional: Gemini
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+cp .env.example .env.local   # then set GEMINI_API_KEY
+npm run dev
+```
 
-## Learn More
+Once a key is set, the sidebar shows "Gemini connected" and these features use Gemini through the server route `/api/ai`. The key never reaches the browser:
 
-To learn more about Next.js, take a look at the following resources:
+- Dashboard: "Rewrite with Gemini" for the daily briefing
+- Study Board: "Explain with Gemini" for the study plan
+- International Advisor: answers grounded only in passages from the curated official-source library
+- AI Assistant: chat that gets a snapshot of every module as context
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Without a key, each of these falls back to deterministic logic, and the output is labeled **"Rule-based (deterministic)"**.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Production build
 
-## Deploy on Vercel
+```bash
+npm run build && npm start
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Modules
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| Module | What works |
+|---|---|
+| **Dashboard** | Personalized greeting, daily briefing, cross-module priority alerts, weekly progress ring, deadlines, graduation, immigration and career cards, quick navigation |
+| **Smart Study Board** | Sticky-note CRUD. Completed notes turn gray with a green check (no strikethrough) and trigger confetti and balloons; finishing the whole week triggers a bigger celebration. Also: 24h/2h/overdue states, a weekly progress bar, a day strip, filters, in-app reminders and a rule-based study-week planner |
+| **Graduation Planner** | Fictional 120-credit B.S. SWE program. Credit and requirement progress, a semester roadmap where each course can be moved with a dropdown, deterministic prerequisite validation, overload checks, projected graduation date, a prerequisite map, Standard vs. Accelerated scenarios from a critical-path scheduler, and an advisor email draft |
+| **International Student Advisor** | Guidance on F-1, CPT, OPT, STEM OPT and working with the DSO, with official source links. Timeline dates come from cited USCIS timing rules (90 days before / 60 days after the program end); items without a rule are labeled planning guidance. Also: checklist, DSO email, retrieval over curated official summaries, and a link to the Graduation Planner that flags an I-20 extension risk |
+| **Career Navigator** | Skill-match score (60% required skills, 25% preferred, 10% field, 5% location) with an explanation of each score, saved roles, application status tracking, four work-authorization categories (confirmed / verification required / unknown / restricted) and resume tips based on skill gaps |
+| **AI Assistant** | Chat that can read every module, with a live feed of automation alerts |
+
+## Architecture
+
+- Next.js 15 (App Router) with TypeScript, Tailwind CSS v4, Framer Motion, Lucide and canvas-confetti
+- `src/lib/types.ts` holds the domain interfaces (Student, Course, Assignment, DegreeRequirement, Prerequisite, SemesterPlan, ImmigrationMilestone, CareerOpportunity, Recommendation)
+- `src/lib/store.tsx` is a React context that persists to `localStorage`. It can be swapped for a database later.
+- Pure logic engines: `graduation.ts`, `immigration.ts`, `matching.ts`, `recommendations.ts`, `workload.ts`, `assistant.ts`, `retrieval.ts`
+- `src/app/api/ai/route.ts` is the server-side Gemini proxy and falls back cleanly when no key is set
+
+Use **Reset demo data** in the sidebar to restore the original demo state. Assignment due dates are seeded relative to the current time, so the warning states always appear during a demo.

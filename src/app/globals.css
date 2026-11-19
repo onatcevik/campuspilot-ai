@@ -1,26 +1,88 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  --font-sans: var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-fraunces), ui-serif, Georgia, serif;
+
+  --color-cream: #fbf8f3;
+  --color-paper: #fffdf9;
+  --color-ink: #2b2a33;
+  --color-muted: #77737f;
+  --color-line: #ece6dc;
+
+  --color-lavender: #ebe5fb;
+  --color-lavender-mid: #cfc3f2;
+  --color-lavender-deep: #6f5cc2;
+
+  --color-sage: #e1eee0;
+  --color-sage-mid: #bcd8ba;
+  --color-sage-deep: #4f8558;
+
+  --color-powder: #deebf8;
+  --color-powder-mid: #b7d2ee;
+  --color-powder-deep: #46729f;
+
+  --color-blush: #fbe2e7;
+  --color-blush-mid: #f2bccb;
+  --color-blush-deep: #bb5672;
+
+  --color-butter: #fcf2c9;
+  --color-butter-mid: #f3df8e;
+  --color-butter-deep: #9a7a17;
+
+  --shadow-soft: 0 1px 2px rgb(43 42 51 / 0.04), 0 8px 24px -12px rgb(43 42 51 / 0.12);
+  --shadow-lift: 0 2px 4px rgb(43 42 51 / 0.05), 0 18px 40px -18px rgb(43 42 51 / 0.25);
+  --shadow-note: 0 1px 1px rgb(43 42 51 / 0.05), 0 12px 22px -14px rgb(43 42 51 / 0.35);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html,
+body {
+  background: var(--color-cream);
+  color: var(--color-ink);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  background-image:
+    radial-gradient(circle at 12% 0%, rgb(235 229 251 / 0.55), transparent 38%),
+    radial-gradient(circle at 95% 10%, rgb(222 235 248 / 0.5), transparent 35%),
+    radial-gradient(circle at 70% 100%, rgb(251 226 231 / 0.35), transparent 40%);
+  background-attachment: fixed;
+}
+
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
+
+.card {
+  background: var(--color-paper);
+  border: 1px solid var(--color-line);
+  border-radius: 1.5rem;
+  box-shadow: var(--shadow-soft);
+}
+
+.note-paper {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 27px,
+    rgb(43 42 51 / 0.05) 27px,
+    rgb(43 42 51 / 0.05) 28px
+  );
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: var(--color-line);
+  border-radius: 999px;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-lavender-deep);
+  outline-offset: 2px;
+  border-radius: 8px;
 }
