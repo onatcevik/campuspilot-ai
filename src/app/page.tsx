@@ -14,6 +14,7 @@ import { DEMO_STUDENT, OPPORTUNITIES } from "@/lib/demo-data";
 import { degreeTotals, validatePlan } from "@/lib/graduation";
 import { buildMilestones, fmtDate } from "@/lib/immigration";
 import { matchOpportunity } from "@/lib/matching";
+import { prioritize } from "@/lib/prioritize";
 import { deriveStudentProfile } from "@/lib/profile";
 import { buildRecommendations, dailyBriefing } from "@/lib/recommendations";
 import { useCampus, useNow } from "@/lib/store";
@@ -45,6 +46,7 @@ export default function Dashboard() {
 
   const wp = weeklyProgress(state.assignments, now);
   const open = state.assignments.filter((a) => !a.completed).sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+  const upNext = prioritize(state.assignments, now).slice(0, 3); // same order as the planner and the Assistant
   const next = open.find((a) => deadlineState(a, now) !== "overdue") ?? open[0];
   const totals = degreeTotals();
   const v = validatePlan(state.plan);
@@ -138,7 +140,7 @@ export default function Dashboard() {
           </div>
           <p className="mb-2 mt-4 text-[11px] font-semibold uppercase tracking-wider text-muted">Up next</p>
           <ul className="space-y-1.5">
-            {open.slice(0, 3).map((a) => {
+            {upNext.map((a) => {
               const st = deadlineState(a, now);
               return (
                 <li key={a.id}>
@@ -149,7 +151,7 @@ export default function Dashboard() {
                 </li>
               );
             })}
-            {!open.length && <p className="text-sm text-muted">Nothing open. 🎉</p>}
+            {!upNext.length && <p className="text-sm text-muted">Nothing open. 🎉</p>}
           </ul>
         </Card>
       </div>

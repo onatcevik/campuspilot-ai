@@ -14,7 +14,7 @@ import { answerQuestion, applyAction, type AssistantAnswer, type AssistantModule
 import type { Fact } from "@/lib/assistant/context";
 import { PENDING_QUESTION_KEY } from "@/lib/assistant/handoff";
 import { formatDue, toLocalInputValue } from "@/lib/deadlines";
-import { advisorEmail, dsoEmail } from "@/lib/emails";
+import { advisorEmail, dsoEmail, extensionRequestEmail } from "@/lib/emails";
 import { validatePlan } from "@/lib/graduation";
 import { buildRecommendations } from "@/lib/recommendations";
 import { useCampus, useNow } from "@/lib/store";
@@ -88,6 +88,13 @@ function AnswerCard({ m }: { m: BotMsg }) {
     if (action.kind === "open") {
       if (applyAction(action, { confirmed: false, existing: assignments, now: new Date() }).ok) router.push(action.href);
     } else if (action.kind === "draft-email") {
+      if (action.to === "professor") {
+        // Built from the CURRENT shared state; never sent automatically.
+        const a = assignments.find((x) => x.id === action.assignmentId);
+        if (a) openDraft({ title: "Extension request (draft)", ...extensionRequestEmail(a), source: "rule" });
+        else toast("Assignment not found", "It may have been deleted from your Study Board.", "warning");
+        return;
+      }
       const v = validatePlan(plan);
       const e = action.to === "advisor" ? advisorEmail(v) : dsoEmail(intl, v.projectedTerm?.id);
       openDraft({ title: action.to === "advisor" ? "Academic advisor email" : "DSO email draft", ...e, source: "rule" });

@@ -2,7 +2,8 @@
 // It classifies a question, then pulls ONLY the relevant modules' data from the existing deterministic engines
 // and turns it into numbered facts (F1, F2…) and official-source passages (S1, S2…).
 // The model only ever sees these facts — never raw state, the student's name, email, or free-text notes.
-import { deadlineState, formatDue, remainingLabel, weeklyProgress } from "../deadlines";
+import { deadlineState, formatDue, remainingLabel, startOfWeek, weeklyProgress } from "../deadlines";
+import { prioritize } from "../prioritize";
 import { DEMO_STUDENT, FUTURE_TERMS, OPPORTUNITIES } from "../demo-data";
 import {
   buildScenarioPlan, chainDepth, courseById, degreeTotals, dependentsOf, SCENARIOS, termById, termToEndISO,
@@ -23,7 +24,8 @@ export type Intent =
   | "grad-internship" | "next-semester" | "skills" | "this-week" | "advisor-dso"
   | "immigration" | "graduation" | "career" | "study" | "overview";
 
-export interface Fact { id: string; module: AssistantModule; text: string }
+/** `ref` = the assignment id a study fact is about (used to validate per-assignment claims). Never sent to the model. */
+export interface Fact { id: string; module: AssistantModule; text: string; ref?: string }
 export interface SourcePassage { id: string; text: string; topic: string; sourceIds: string[] }
 
 export interface ScenarioSummary { id: string; name: string; projected: string; onTime: boolean; summers: { label: string; credits: number; level: string }[] }
@@ -42,6 +44,8 @@ export interface AssistantData {
   topMatches: { o: CareerOpportunity; m: MatchResult }[];
   gaps: { skill: string; weight: number; course?: { code: string; title: string; when: string } }[];
   criticalRecs: Recommendation[];
+  /** Titles of completed assignments. Never sent to the model; used to reject answers that recommend finished work. */
+  completedTitles: string[];
 }
 
 export interface AssistantContext {
@@ -117,8 +121,8 @@ export function buildAssistantContext(question: string, s: CampusState, now: Dat
   const modules = modulesFor(intents, profile.isF1);
   const validation = validatePlan(s.plan);
   const facts: Fact[] = [];
-  const add = (module: AssistantModule, text: string) => {
-    const f = { id: `F${facts.length + 1}`, module, text };
+  const add = (module: AssistantModule, text: string, ref?: string) => {
+    const f: Fact = { id: `F${facts.length + 1}`, module, text, ...(ref ? { ref } : {}) };
     facts.push(f);
     return f;
   };
@@ -145,7 +149,9 @@ export function buildAssistantContext(question: string, s: CampusState, now: Dat
     });
     return { id: sc.id, name: sc.name, projected: termToGraduationDate(last), onTime: !!last && last.order <= target.order, summers };
   });
-  const open = s.assignments.filter((a) => !a.completed).sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+  // Same order the planner and dashboard use; closed (student-reported) work goes last — it isn't a study task.
+  const ranked = prioritize(s.assignments, now);
+  const open: Assignment[] = [...ranked, ...s.assignments.filter((a) => !a.completed && a.submission === "closed")];
   const workload = buildWorkloadPlan(s.assignments, now);
   const milestones = buildMilestones(s.intl);
   const i20Mismatch = profile.isF1 && !!validation.projectedTerm && termToEndISO(validation.projectedTerm) > s.intl.programEndDate;
@@ -160,17 +166,25 @@ export function buildAssistantContext(question: string, s: CampusState, now: Dat
   if (modules.includes("study")) {
     const wp = weeklyProgress(s.assignments, now);
     add("study", `This week: ${wp.done} of ${wp.total} assignments completed.`);
-    open.slice(0, 6).forEach((a) => {
+    open.slice(0, 8).forEach((a) => {
       const st = deadlineState(a, now);
-      const tag = a.submission === "closed" ? "SUBMISSION CLOSED (student-reported, not completed)"
-        : st === "overdue" ? (a.submission === "late-allowed" ? "OVERDUE, late submission allowed (student-reported)" : "OVERDUE, submission availability unknown")
+      const tag = a.submission === "closed" ? "SUBMISSION CLOSED (student-reported, not completed); not a study task"
+        : st === "overdue" ? (a.submission === "late-allowed" ? "OVERDUE, late submission allowed (student-reported)" : "OVERDUE, submission availability unknown (check the late policy before substantial work)")
         : st === "due-2h" ? "due in under 2 hours" : st === "due-24h" ? "due within 24 hours" : "upcoming";
-      add("study", `Assignment "${a.title}" (${a.course}): ${tag}, due ${formatDue(a.dueDate)} (${remainingLabel(a, now)}), estimated ${a.estimatedHours}h.`);
+      const rank = ranked.findIndex((r) => r.id === a.id);
+      add("study", `Assignment "${a.title}" (${a.course}): ${tag}, due ${formatDue(a.dueDate)} (${remainingLabel(a, now)}), estimated ${a.estimatedHours}h${rank >= 0 ? `, priority rank ${rank + 1}` : ""}.`, a.id);
     });
+    const doneThisWeek = s.assignments.filter((a) => a.completed && new Date(a.dueDate) >= startOfWeek(now));
+    if (doneThisWeek.length)
+      add("study", `Completed this week (already done; never recommend as work): ${doneThisWeek.map((a) => `"${a.title}" (${a.course})`).join(", ")}.`);
+    const blockLabel = (b: { title: string; hours: number; kind: string }) =>
+      `${b.title} ${b.hours}h${b.kind === "check-late-policy" ? " (check the late policy first; availability unknown)" : b.kind === "late-allowed" ? " (late allowed, student-reported)" : ""}`;
     workload.days.slice(0, 2).forEach((d) => {
-      if (d.blocks.length) add("study", `Suggested focus ${d.label.toLowerCase()}: ${d.blocks.map((b) => `${b.title} ${b.hours}h`).join(", ")} (earliest-deadline-first, 3h/day budget).`);
+      if (d.blocks.length) add("study", `Suggested focus ${d.label.toLowerCase()}: ${d.blocks.map(blockLabel).join(", ")} (shared priority order, 3h/day budget).`);
     });
     workload.warnings.forEach((w) => add("study", `Workload warning: ${w}`));
+    if (open.some((a) => a.submission || deadlineState(a, now) === "overdue"))
+      add("study", "Submission availability after a deadline is only what the student reported. CampusPilot is not connected to LearningBAU and cannot verify whether a submission is open or closed.");
     if (intents.includes("this-week"))
       criticalRecs.filter((r) => r.module !== "study").forEach((r) => add(r.module === "assistant" ? "study" : (r.module as AssistantModule), `Critical alert: ${r.title}. ${r.detail}`));
   }
@@ -235,7 +249,7 @@ export function buildAssistantContext(question: string, s: CampusState, now: Dat
 
   return {
     question, intents, modules, facts, passages, officialSources,
-    data: { profile, validation, nextTerm, nextTermCourses, scenarios, open, workload, milestones, i20Mismatch, topMatches, gaps, criticalRecs },
+    data: { profile, validation, nextTerm, nextTermCourses, scenarios, open, workload, milestones, i20Mismatch, topMatches, gaps, criticalRecs, completedTitles: s.assignments.filter((a) => a.completed).map((a) => a.title) },
   };
 }
 

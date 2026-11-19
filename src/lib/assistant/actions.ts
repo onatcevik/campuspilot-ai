@@ -4,7 +4,7 @@ import type { Assignment } from "../types";
 
 export type ProposedAction =
   | { id: string; kind: "create-task"; label: string; mutates: true; task: Omit<Assignment, "id" | "completed"> }
-  | { id: string; kind: "draft-email"; label: string; mutates: false; to: "advisor" | "dso" }
+  | { id: string; kind: "draft-email"; label: string; mutates: false; to: "advisor" | "dso" | "professor"; assignmentId?: string }
   | { id: string; kind: "open"; label: string; mutates: false; href: string };
 
 export const ALLOWED_HREFS = ["/", "/study-board", "/graduation", "/international", "/career", "/assistant"];

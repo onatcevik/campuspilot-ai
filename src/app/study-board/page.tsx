@@ -285,7 +285,7 @@ export default function StudyBoard() {
               <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <h2 className="font-display text-xl font-semibold">Recommended study plan</h2>
-                  <p className="text-xs text-muted">Earliest-deadline-first, max 3 focus hours/day, overdue work first. Hours come from each card&apos;s estimate.</p>
+                  <p className="text-xs text-muted">Shared priority order (due &lt; 2h → due &lt; 24h → late allowed → overdue/unknown → later), max 3 focus hours/day. Overdue work with unknown availability gets a short check-first block only.</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <SourceLabel kind="rule" />
@@ -299,9 +299,9 @@ export default function StudyBoard() {
                     <div className="space-y-1.5">
                       {d.blocks.length === 0 && <p className="text-xs text-muted">Free · rest or get ahead</p>}
                       {d.blocks.map((b, i) => (
-                        <div key={i} className={`rounded-xl px-2.5 py-1.5 text-xs ${b.late ? "bg-blush text-blush-deep" : "bg-white"}`}>
+                        <div key={i} className={`rounded-xl px-2.5 py-1.5 text-xs ${b.kind === "check-late-policy" ? "border border-dashed border-butter-deep/50 bg-butter/60" : b.late ? "bg-blush text-blush-deep" : "bg-white"}`}>
                           <p className="font-semibold">{b.title}</p>
-                          <p className="opacity-70">{b.hours}h{b.late ? " · catch up" : ""}</p>
+                          <p className="opacity-70">{b.hours}h{b.kind === "check-late-policy" ? " · availability unknown: check the late policy first" : b.kind === "late-allowed" ? " · late allowed (you reported)" : ""}</p>
                         </div>
                       ))}
                     </div>

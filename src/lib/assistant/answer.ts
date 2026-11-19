@@ -99,21 +99,33 @@ function skills(ctx: AssistantContext, now: Date): Section {
 function thisWeek(ctx: AssistantContext, now: Date): Section {
   const s = empty();
   const d = ctx.data;
-  const urgent = d.open.filter((a) => ["overdue", "due-2h", "due-24h"].includes(deadlineState(a, now)));
+  // Completed work is never in d.open. Closed work (student-reported) is not a study task: it goes to "Needs attention".
+  const closed = d.open.filter((a) => a.submission === "closed");
+  const actionable = d.open.filter((a) => a.submission !== "closed");
+  const urgent = actionable.filter((a) => ["overdue", "due-2h", "due-24h"].includes(deadlineState(a, now)));
   if (!d.open.length) s.text.push("All your assignments are complete.");
-  else {
-    s.text.push(urgent.length ? `Start with the ${urgent.length} urgent item(s):` : "Nothing is urgent. Here's what's next:");
-    (urgent.length ? urgent : d.open.slice(0, 3)).forEach((a) => {
+  else if (actionable.length) {
+    s.text.push(urgent.length ? `Start with the ${urgent.length} urgent item(s), in priority order:` : "Nothing is urgent. Here's what's next:");
+    (urgent.length ? urgent : actionable.slice(0, 3)).forEach((a) => {
       const st = deadlineState(a, now);
-      s.text.push(`- ${a.title} (${a.course}): ${a.submission === "closed" ? "submission closed (you reported). Consider emailing your professor" : st === "overdue" ? (a.submission === "late-allowed" ? "overdue, late submission allowed (you reported)" : "overdue. Check whether late submission is allowed") : st === "due-2h" ? "due in under 2 hours" : st === "due-24h" ? "due within 24 hours" : "upcoming"}.`);
+      s.text.push(`- ${a.title} (${a.course}): ${st === "overdue" ? (a.submission === "late-allowed" ? "overdue, late submission allowed (you reported). Submit it as soon as you can" : "overdue, submission availability unknown. First check whether late submission is allowed before putting in more hours") : st === "due-2h" ? "due in under 2 hours" : st === "due-24h" ? "due within 24 hours" : "upcoming"}.`);
     });
+  }
+  if (closed.length) {
+    s.text.push("**Needs attention** (you reported submission is closed, so these aren't study tasks right now):");
+    closed.forEach((a) => s.text.push(`- ${a.title} (${a.course}): consider emailing your professor about an extension.`));
   }
   const today = d.workload.days[0];
   if (today?.blocks.length) s.text.push(`Suggested focus today: ${today.blocks.map((b) => `${b.title} (${b.hours}h)`).join(", ")}.`);
+  if (d.open.some((a) => a.submission || deadlineState(a, now) === "overdue"))
+    s.text.push("Submission statuses are what you reported. CampusPilot can't verify LearningBAU.");
   d.criticalRecs.filter((r) => r.module !== "study").forEach((r) => s.text.push(`Also: ${r.title}.`));
-  const overdue = d.open.find((a) => deadlineState(a, now) === "overdue");
-  if (overdue) s.actions.push(makeTaskAction(`task-email-${overdue.id}`, `Add task: email instructor about "${overdue.title}"`, `Email instructor about overdue "${overdue.title}"`, `${overdue.course}. Ask about late submission options.`, 0.5, new Date(now.getTime() + 4 * 3600_000), "high"));
-  s.facts.push(...findFact(ctx, /This week|Assignment "|Suggested focus|Workload warning|Critical alert/));
+
+  const unknownOverdue = actionable.find((a) => deadlineState(a, now) === "overdue" && !a.submission);
+  if (unknownOverdue)
+    s.actions.push(makeTaskAction(`task-latecheck-${unknownOverdue.id}`, `Add task: check late-submission policy for "${unknownOverdue.title}"`, `Check whether late submission is allowed for "${unknownOverdue.title}"`, `${unknownOverdue.course}. Check the syllabus or ask the instructor, then update the status on the Study Board.`, 0.5, new Date(now.getTime() + 4 * 3600_000), "high"));
+  closed.slice(0, 1).forEach((a) => s.actions.push({ id: `email-prof-${a.id}`, kind: "draft-email", label: `Draft extension email for "${a.title}"`, mutates: false, to: "professor", assignmentId: a.id }));
+  s.facts.push(...findFact(ctx, /This week|Assignment "|Suggested focus|Workload warning|Critical alert|cannot verify/));
   s.actions.push({ id: "open-study", kind: "open", label: "Open Study Board", mutates: false, href: "/study-board" });
   return s;
 }
