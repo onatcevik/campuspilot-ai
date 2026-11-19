@@ -52,6 +52,13 @@ describe("filtering", () => {
     expect(filterListings(items, { ...base, statusFilter: "applied", statuses }).map((x) => x.o.id)).toEqual(["o1"]);
     expect(filterListings(items, { ...base, statusFilter: "not-started", statuses })).toHaveLength(items.length - 1);
   });
+  it("filters by field and free-text search (role, company, skills)", () => {
+    expect(filterListings(items, { ...base, field: "Cybersecurity" }).map((x) => x.o.id).sort()).toEqual(["o4", "o8"]);
+    expect(filterListings(items, { ...base, query: "pytorch" }).map((x) => x.o.id)).toEqual(["o2"]);
+    expect(filterListings(items, { ...base, query: "  ROSSLYN " }).map((x) => x.o.id)).toEqual(["o5"]);
+    expect(filterListings(items, { ...base, query: "no-such-thing" })).toEqual([]);
+  });
+
   it("combines filters", () => {
     const r = filterListings(items, { ...base, savedOnly: true, saved: ["o1", "o2"], authFilter: "confirmed" });
     expect(r.map((x) => x.o.id)).toEqual(["o1"]);

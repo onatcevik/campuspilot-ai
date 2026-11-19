@@ -182,3 +182,72 @@ export function buildScenarioPlan(s: Scenario): PlanMap {
   }
   return plan;
 }
+
+// ---------- Deterministic explanations ("why is there a delay?") ----------
+
+/** All longest chains of remaining courses where each requires the previous one (e.g. CS102 → SWE410 → SWE490 → SWE491). */
+export function longestChains(): string[][] {
+  const starts = REMAINING_COURSE_IDS.filter((id) => !prereqsOf(id).some((p) => REMAINING_COURSE_IDS.includes(p)));
+  const paths: string[][] = [];
+  const walk = (id: string, path: string[]) => {
+    const next = dependentsOf(id).filter((d) => REMAINING_COURSE_IDS.includes(d));
+    if (!next.length) { paths.push(path); return; }
+    next.sort().forEach((d) => walk(d, [...path, d]));
+  };
+  starts.sort().forEach((s) => walk(s, [s]));
+  const max = Math.max(0, ...paths.map((p) => p.length));
+  return paths.filter((p) => p.length === max);
+}
+
+/** One representative longest chain (deterministic: first alphabetically). */
+export const criticalPath = (): string[] => longestChains()[0] ?? [];
+
+/** Credits whose prerequisites are already satisfied before any future term (what you can take in the first term). */
+export function eligibleCreditsAtStart(): number {
+  const done = new Set([...COMPLETED_COURSE_IDS, ...IN_PROGRESS_COURSE_IDS]);
+  return credits(REMAINING_COURSE_IDS.filter((id) => prereqsOf(id).every((r) => done.has(r))));
+}
+
+export interface ConflictFix {
+  courseId: string;
+  missing: string;
+  message: string;
+  earliestTermId: string | null; // earliest term where the course would satisfy this prerequisite
+  blocks: string[]; // later courses that depend on this course (directly or indirectly)
+}
+
+function downstream(id: string): string[] {
+  const out = new Set<string>();
+  const visit = (c: string) => dependentsOf(c).forEach((d) => { if (!out.has(d)) { out.add(d); visit(d); } });
+  visit(id);
+  return [...out].filter((d) => REMAINING_COURSE_IDS.includes(d));
+}
+
+/** For each prerequisite conflict: the earliest term that would satisfy it and what else it holds up. */
+export function explainConflicts(plan: PlanMap): ConflictFix[] {
+  return validatePlan(plan).prereqIssues.map((i) => {
+    const reqTerm = plan[i.missing];
+    const reqOrder = COMPLETED_COURSE_IDS.includes(i.missing) || IN_PROGRESS_COURSE_IDS.includes(i.missing) ? 0 : reqTerm ? termById[reqTerm].order : null;
+    const earliest = reqOrder === null ? null : FUTURE_TERMS.find((t) => t.order > reqOrder)?.id ?? null;
+    return { courseId: i.courseId, missing: i.missing, message: i.message, earliestTermId: earliest, blocks: downstream(i.courseId) };
+  });
+}
+
+/** Why a scenario finishes when it does, using only the scheduler's own inputs. */
+export function explainScenario(s: Scenario) {
+  const chain = criticalPath();
+  const terms = FUTURE_TERMS.filter((t) => s.useSummer || t.season !== "Summer");
+  const chainFinish = terms[chain.length - 1] ?? null;
+  const projected = validatePlan(buildScenarioPlan(s)).projectedTerm;
+  const eligible = eligibleCreditsAtStart();
+  const firstLimit = terms[0] ? (terms[0].season === "Summer" ? s.maxSummer : s.maxRegular) : 0;
+  const count = longestChains().length;
+  const reasons = [
+    `${count > 1 ? `${count} prerequisite chains` : "The longest prerequisite chain"} need${count > 1 ? "" : "s"} ${chain.length} terms in a row (e.g. ${chain.map((id) => courseById[id].code).join(" → ")})${s.useSummer ? ", summers included" : " with no summer terms"}, so the earliest possible finish is ${termToGraduationDate(chainFinish)}.`,
+  ];
+  if (eligible < firstLimit)
+    reasons.push(`Only ${eligible} credits are eligible in ${terms[0].label} because prerequisites aren't done yet, so that term can't be filled to ${firstLimit} credits.`);
+  if (projected && chainFinish && projected.order > chainFinish.order)
+    reasons.push(`With a ${s.maxRegular}-credit cap${s.useSummer ? ` and ${s.maxSummer} summer credits` : ""}, the remaining credits spill into ${projected.label}.`);
+  return { chain, chainFinish: termToGraduationDate(chainFinish), projected: termToGraduationDate(projected), reasons };
+}

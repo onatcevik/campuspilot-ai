@@ -38,6 +38,19 @@
 - [x] Key scan: 0 matches in tracked files, full git history, diff, source, client bundle, server build and server logs
 - [x] 112 tests passing
 
+## Hackathon polish (uncommitted; tested in the browser on an isolated server with Gemini disabled)
+- [x] Dashboard redesign: KPIs above the fold, top 3 alerts (expandable), study-this-week card, compact module cards. Page height went from 2023 px to about 1456 px at 1440×900
+- [x] Study Board: week view with day headings, week navigation, carried-over overdue section, all-tasks view kept. Completion → gray, no strikethrough, confetti and balloons (checked in the browser)
+- [x] Reduced motion: global `MotionConfig reducedMotion="user"`, the ping animation is limited to `motion-safe`, balloons are skipped
+- [x] Reminders relabeled honestly as in-app only
+- [x] Graduation: timeline and credits bar, deterministic "why this delays you" with an earliest-valid-term fix (tested: it resolves the demo conflict), scenario "Why?" explanations
+- [x] International: can / can't-decide panel, collapsible sources, DSO and advisor drafts
+- [x] Career: search and field filters (unit-tested), links from listings to their Study Board tasks
+- [x] Assistant: collapsible sources, loading status, shorter header. Reachable from 4 modules
+- [x] Privacy fix: the dashboard "Rewrite with Gemini" no longer sends the student's name (only alert titles)
+- [x] End-to-end demo flow checked: complete task → dashboard KPI updates → graduation fix → Assistant reflects the fixed plan → confirmed task appears on the Study Board → career task linked from its listing. No duplicate IDs
+- [x] 124 tests passing (12 new). No console errors. All 6 pages fit 375 px wide. Key appears in 0 places
+
 ## Remaining / nice to have
 - [ ] A real HTTP 429 from Google wasn't triggered on purpose (to avoid using up the free quota). Covered with an injected 429 instead
 - [ ] Other Gemini features (dashboard briefing rewrite, study-plan explanation, career fit analysis, immigration Q&A) use the same safeguarded route but weren't each tested with the real API

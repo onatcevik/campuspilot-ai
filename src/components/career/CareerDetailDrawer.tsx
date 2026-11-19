@@ -2,6 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { CalendarCheck, CalendarPlus, Check, ExternalLink, GraduationCap, Link2, ShieldQuestion, Sparkles, Target, TrendingUp, Wand2, X } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useFeedback } from "@/components/feedback";
 import { Badge, Button, inputCls, SourceLabel } from "@/components/ui";
@@ -47,7 +48,7 @@ export function CareerDetailDrawer({ o, m, profile, onClose }: { o: CareerOpport
   function confirmAdd() {
     if (!pending) return;
     const created = addAssignment(careerTaskToAssignment(pending.t, o, new Date(pending.due).toISOString()));
-    notify(`Career task added: ${created.title}`, `${created.course} · due ${formatDue(created.dueDate)}. Reminders at 24h and 2h.`, "career", `career-${created.id}`);
+    notify(`Career task added: ${created.title}`, `${created.course} · due ${formatDue(created.dueDate)}. In-app reminders appear at 24h and 2h while CampusPilot is open.`, "career", `career-${created.id}`);
     toast("Added to Smart Study Board", created.title, "success");
     setPending(null);
   }
@@ -175,7 +176,7 @@ export function CareerDetailDrawer({ o, m, profile, onClose }: { o: CareerOpport
               return (
                 <li key={t.key} className="flex items-center justify-between gap-2 rounded-xl bg-white/80 px-3 py-2">
                   <div className="min-w-0"><p className="truncate text-xs font-semibold">{t.title}</p><p className="truncate text-[11px] text-muted">{t.estimatedHours}h · {t.notes}</p></div>
-                  {onBoard ? <Badge tone="sage"><Check size={11} /> On board</Badge> : (
+                  {onBoard ? <Link href="/study-board" className="inline-flex shrink-0 items-center gap-1 rounded-full bg-sage px-2.5 py-1 text-[11px] font-semibold text-sage-deep hover:underline"><Check size={11} /> On board →</Link> : (
                     <button onClick={() => setPending({ t, due: toLocalInputValue(defaultDue(t.daysFromNow).toISOString()) })} className="shrink-0 rounded-full bg-butter px-3 py-1 text-[11px] font-semibold text-butter-deep hover:brightness-95">Add…</button>
                   )}
                 </li>

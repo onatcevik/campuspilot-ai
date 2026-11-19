@@ -83,7 +83,10 @@ function NotificationBell() {
           <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
             className="card absolute right-0 top-12 z-50 w-[min(360px,calc(100vw-2rem))] p-3">
             <div className="mb-2 flex items-center justify-between px-1">
-              <p className="font-display text-lg font-semibold">Reminders</p>
+              <div>
+                <p className="font-display text-lg font-semibold">In-app reminders</p>
+                <p className="text-[10px] text-muted">Shown while CampusPilot is open · not push or email notifications (demo)</p>
+              </div>
               <button className="text-xs font-semibold text-lavender-deep hover:underline" onClick={markAllRead}>Mark all read</button>
             </div>
             <div className="scrollbar-thin max-h-80 space-y-1.5 overflow-y-auto">

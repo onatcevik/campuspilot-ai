@@ -1,7 +1,8 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Bookmark, BookmarkCheck, Briefcase, Calculator, CircleHelp, Database, ExternalLink, FileText, MapPin, PanelRightOpen, Plus, RefreshCw, ShieldCheck, ShieldQuestion, ShieldX, Sparkles, X } from "lucide-react";
+import { Bookmark, BookmarkCheck, Briefcase, Calculator, CalendarCheck, CircleHelp, Database, ExternalLink, FileText, MapPin, PanelRightOpen, Plus, Search, RefreshCw, ShieldCheck, ShieldQuestion, ShieldX, Sparkles, X } from "lucide-react";
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useFeedback } from "@/components/feedback";
 import { Badge, Card, IconBubble, PageHeader, ProgressRing, SourceLabel, type Tone } from "@/components/ui";
@@ -35,7 +36,7 @@ const fieldTone: Record<CareerField, Tone> = {
 };
 
 export default function CareerNavigator() {
-  const { career, setCareer, saved, toggleSaved, statuses, setStatus, intl, plan, notify } = useCampus();
+  const { career, setCareer, saved, toggleSaved, statuses, setStatus, intl, plan, notify, assignments } = useCampus();
   const { toast } = useFeedback();
   const [savedOnly, setSavedOnly] = useState(false);
   const [authFilter, setAuthFilter] = useState<WorkAuthStatus | "all">("all");
@@ -43,6 +44,8 @@ export default function CareerNavigator() {
   const [explain, setExplain] = useState<string | null>(null);
   const [source, setSource] = useState<SourceFilter>("all");
   const [statusFilter, setStatusFilter] = useState<ApplicationStatus | "all">("all");
+  const [fieldFilter, setFieldFilter] = useState<CareerField | "all">("all");
+  const [query, setQuery] = useState("");
   const [detailId, setDetailId] = useState<string | null>(null);
   const live = useLiveJobs();
 
@@ -53,7 +56,8 @@ export default function CareerNavigator() {
     () => all.map((o) => ({ o, m: matchOpportunity(o, career) })).sort((a, b) => b.m.score - a.m.score),
     [all, career],
   );
-  const shown = filterListings(scored, { savedOnly, saved, authFilter, source, statusFilter, statuses });
+  const shown = filterListings(scored, { savedOnly, saved, authFilter, source, statusFilter, statuses, field: fieldFilter, query });
+  const tasksFor = (id: string) => assignments.filter((x) => x.origin?.module === "career" && x.origin.opportunityId === id);
   const gaps = skillGaps(all, career);
   const tips = resumeTips(career, all);
   const top3 = scored.filter((x) => !x.m.insufficientData).slice(0, 3);
@@ -146,6 +150,16 @@ export default function CareerNavigator() {
 
         {/* Opportunities */}
         <div>
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <label className="relative min-w-[200px] flex-1">
+              <Search size={14} className="absolute left-3 top-2.5 text-muted" />
+              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search role, company, skill…" aria-label="Search opportunities"
+                className="w-full rounded-full border border-line bg-white py-1.5 pl-8 pr-3 text-sm outline-none focus:border-lavender-deep" />
+            </label>
+            {(["all", ...FIELDS] as (CareerField | "all")[]).map((f) => (
+              <button key={f} onClick={() => setFieldFilter(f)} className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${fieldFilter === f ? "bg-ink text-white" : "bg-cream text-muted hover:text-ink"}`}>{f === "all" ? "All fields" : f}</button>
+            ))}
+          </div>
           <div className="mb-4 flex flex-wrap items-center gap-2">
             <button onClick={() => setSavedOnly(false)} className={`rounded-full px-4 py-1.5 text-sm font-semibold ${!savedOnly ? "bg-ink text-white" : "border border-line bg-paper text-muted"}`}>All ({all.length})</button>
             <button onClick={() => setSavedOnly(true)} className={`rounded-full px-4 py-1.5 text-sm font-semibold ${savedOnly ? "bg-ink text-white" : "border border-line bg-paper text-muted"}`}>Saved ({saved.length})</button>
@@ -231,6 +245,11 @@ export default function CareerNavigator() {
                     <button onClick={() => setDetailId(o.id)} className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-full bg-lavender px-3 py-1.5 text-xs font-semibold text-lavender-deep transition hover:bg-lavender-mid">
                       <PanelRightOpen size={13} /> Fit analysis, CPT/OPT & tasks
                     </button>
+                    {tasksFor(o.id).length > 0 && (
+                      <Link href="/study-board" className="mt-2 inline-flex items-center gap-1 self-start text-[11px] font-semibold text-sage-deep hover:underline">
+                        <CalendarCheck size={12} /> {tasksFor(o.id).length} task{tasksFor(o.id).length > 1 ? "s" : ""} on your Study Board ({tasksFor(o.id).filter((x) => x.completed).length} done) →
+                      </Link>
+                    )}
                     <div className="mt-auto flex items-center gap-2 pt-4">
                       <select value={st} onChange={(e) => { setStatus(o.id, e.target.value as ApplicationStatus); if (e.target.value === "applied") notify(`Applied: ${o.role}`, `${o.company}. ${isF1 ? "Remember: plan CPT with your DSO early." : ""}`, "career"); }}
                         className="flex-1 rounded-full border border-line bg-white px-3 py-1.5 text-xs font-semibold" aria-label={`Application status for ${o.role}`}>

@@ -1,14 +1,16 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { AlertTriangle, ArrowRight, CheckCircle2, GraduationCap, Link2, Mail, Rocket, Scale, Sparkles } from "lucide-react";
+import { AlertTriangle, ArrowRight, Bot, CheckCircle2, GraduationCap, Link2, Mail, MoveRight, Rocket, Scale } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useFeedback } from "@/components/feedback";
+import { GraduationTimeline } from "@/components/graduation/GraduationTimeline";
+import { useAskAssistant } from "@/lib/assistant/useAskAssistant";
 import { Badge, Button, Card, IconBubble, PageHeader, ProgressBar, ProgressRing, SourceLabel } from "@/components/ui";
 import { COMPLETED_COURSE_IDS, CURRENT_TERM_LABEL, DEMO_STUDENT, FUTURE_TERMS, INITIAL_PLAN, IN_PROGRESS_COURSE_IDS } from "@/lib/demo-data";
 import { advisorEmail } from "@/lib/emails";
 import {
-  buildScenarioPlan, courseById, degreeTotals, dependentsOf, prereqsOf, requirementProgress, SCENARIOS,
+  buildScenarioPlan, courseById, degreeTotals, dependentsOf, explainConflicts, explainScenario, prereqsOf, requirementProgress, SCENARIOS,
   termById, termLimit, termToGraduationDate, validatePlan,
 } from "@/lib/graduation";
 import { useCampus } from "@/lib/store";
@@ -20,6 +22,8 @@ export default function GraduationPlanner() {
   const { openDraft, toast } = useFeedback();
   const [focus, setFocus] = useState<string | null>("SWE410");
   const v = useMemo(() => validatePlan(plan), [plan]);
+  const fixes = useMemo(() => explainConflicts(plan), [plan]);
+  const askAssistant = useAskAssistant();
   const totals = degreeTotals();
   const reqs = requirementProgress();
   const scenarios = useMemo(() => SCENARIOS.map((s) => ({ s, plan: buildScenarioPlan(s), })).map((x) => ({ ...x, v: validatePlan(x.plan) })), []);
@@ -51,8 +55,11 @@ export default function GraduationPlanner() {
     <div>
       <PageHeader eyebrow="Module 2" title="Graduation Planner" icon={GraduationCap} tone="sage"
         subtitle="Fictional B.S. Software Engineering program (demo data, not verified BAU policy). Move courses between terms — prerequisites and graduation date re-validate instantly.">
+        <Button variant="soft" onClick={() => askAssistant("Can I graduate by May 2028 and still complete a summer internship?")}><Bot size={16} /> Ask CampusPilot</Button>
         <Button variant="soft" onClick={draftEmail}><Mail size={16} /> Generate Advisor Email</Button>
       </PageHeader>
+
+      <GraduationTimeline v={v} />
 
       {/* Summary row */}
       <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -107,13 +114,21 @@ export default function GraduationPlanner() {
                     {v.unscheduled.length > 0 && <li>• <b>Unscheduled:</b> {v.unscheduled.map((id) => courseById[id].code).join(", ")}</li>}
                     {late && <li>• <b>Late graduation:</b> plan finishes {termToGraduationDate(v.projectedTerm)}, after your {DEMO_STUDENT.expectedGraduation} target.</li>}
                   </ul>
-                  {v.prereqIssues[0] && (
-                    <p className="mt-2 text-xs text-blush-deep">
-                      <Sparkles size={12} className="mr-1 inline" />
-                      Recommended action: move {courseById[v.prereqIssues[0].courseId].code} to a term after {courseById[v.prereqIssues[0].missing].code}
-                      {" "}(e.g. Summer 2027), or apply the accelerated scenario below. Then confirm with your advisor.
-                    </p>
-                  )}
+                  {fixes.map((f) => (
+                    <div key={f.courseId + f.missing} className="mt-3 rounded-2xl bg-white/70 p-3 text-xs">
+                      <p className="font-semibold">Why this delays you</p>
+                      <p className="mt-0.5 text-ink/80">
+                        {courseById[f.courseId].code} can&apos;t start until {courseById[f.missing].code} is finished.
+                        {f.blocks.length > 0 && <> It also holds up {f.blocks.map((b) => courseById[b].code).join(", ")}, so every term it slips pushes those later too.</>}
+                      </p>
+                      {f.earliestTermId && (
+                        <button onClick={() => onMove(f.courseId, f.earliestTermId!)} className="mt-2 inline-flex items-center gap-1 rounded-full bg-ink px-3 py-1 font-semibold text-white hover:bg-ink/85">
+                          <MoveRight size={12} /> Move {courseById[f.courseId].code} to {termById[f.earliestTermId].label} (earliest valid term)
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <p className="mt-2 text-[11px] text-blush-deep">Or apply a scenario below, then confirm the sequence with your advisor.</p>
                 </div>
               </div>
               <Button onClick={draftEmail}><Mail size={16} /> Advisor email</Button>
@@ -246,12 +261,13 @@ export default function GraduationPlanner() {
           <SourceLabel kind="rule" />
         </div>
         <p className="mb-4 max-w-3xl text-sm text-muted">
-          Both scenarios are generated by a critical-path scheduler: each term it takes eligible courses with the longest chain of dependent courses first.
-          Your longest chain is <b>CS 102 → SWE 410 → SWE 490 → SWE 491</b> (4 terms), and because Programming II is still missing, only a few courses are eligible in Spring 2027 — that underfilled term is what makes sequencing decisive.
+          Both scenarios come from the same deterministic critical-path scheduler. Each term, it takes the eligible courses that unlock the longest chain of later courses first.
+          Compare when each one finishes and why.
         </p>
         <div className="grid gap-4 md:grid-cols-2">
           {scenarios.map(({ s, plan: sp, v: sv }) => {
             const onTime = sv.projectedTerm && sv.projectedTerm.order <= target.order;
+            const why = explainScenario(s);
             return (
               <Card key={s.id} className="flex flex-col">
                 <div className="flex items-start justify-between gap-2">
@@ -270,10 +286,14 @@ export default function GraduationPlanner() {
                     <span key={x.termId} className="rounded-full bg-cream px-2.5 py-1 text-[11px] font-semibold">{termById[x.termId].label}: {x.credits} cr</span>
                   ))}
                 </div>
-                <p className="mt-3 text-xs text-muted">
+                <div className="mt-3 rounded-2xl bg-cream/80 p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted">Why {why.projected}?</p>
+                  <ul className="mt-1 space-y-1 text-xs text-ink/80">{why.reasons.map((r) => <li key={r}>• {r}</li>)}</ul>
+                </div>
+                <p className="mt-2 text-xs text-muted">
                   {s.id === "standard"
-                    ? "Lower weekly workload and more room for a part-time internship. But prerequisites leave the early terms underfilled, so the remaining credits spill past the May 2028 target."
-                    : "Uses Summer 2027 to start the SWE 410 → capstone chain early. Heavier terms; check summer availability and any overload approvals with your advisor."}
+                    ? "Trade-off: lighter terms and free summers for internships, but a later finish."
+                    : "Trade-off: meets the target, but with heavier terms and summer courses. Check summer offerings and overload approvals with your advisor."}
                 </p>
                 <Button variant={s.id === "accelerated" ? "primary" : "ghost"} className="mt-4 self-start"
                   onClick={() => { applyPlan(sp); toast(`${s.name} applied`, `Projected graduation: ${termToGraduationDate(sv.projectedTerm)}`, "success"); notify(`Plan updated: ${s.name}`, `Projected graduation ${termToGraduationDate(sv.projectedTerm)}.`, "graduation"); }}>

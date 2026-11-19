@@ -1,5 +1,7 @@
 # CampusPilot AI: demo script (about 4 minutes)
 
+> **Superseded by [DEMO_GUIDE.md](DEMO_GUIDE.md)**, which matches the current UI (week view, graduation timeline, Assistant actions). This file is kept for reference.
+
 **Before you start:** open http://localhost:3000, click **Reset demo data** in the sidebar, and use a laptop-size window.
 
 ---

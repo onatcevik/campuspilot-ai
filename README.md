@@ -105,12 +105,26 @@ npm run build && npm start
 
 | Module | What works |
 |---|---|
-| **Dashboard** | Personalized greeting, daily briefing, cross-module priority alerts, weekly progress ring, deadlines, graduation, immigration and career cards, quick navigation |
-| **Smart Study Board** | Sticky-note CRUD. Completed notes turn gray with a green check (no strikethrough) and trigger confetti and balloons; finishing the whole week triggers a bigger celebration. Also: 24h/2h/overdue states, a weekly progress bar, a day strip, filters, in-app reminders and a rule-based study-week planner |
-| **Graduation Planner** | Fictional 120-credit B.S. SWE program. Credit and requirement progress, a semester roadmap where each course can be moved with a dropdown, deterministic prerequisite validation, overload checks, projected graduation date, a prerequisite map, Standard vs. Accelerated scenarios from a critical-path scheduler, and an advisor email draft |
-| **International Student Advisor** | Guidance on F-1, CPT, OPT, STEM OPT and working with the DSO, with official source links. Timeline dates come from cited USCIS timing rules (90 days before / 60 days after the program end); items without a rule are labeled planning guidance. Also: checklist, DSO email, retrieval over curated official summaries, and a link to the Graduation Planner that flags an I-20 extension risk |
-| **Career Navigator** | Skill-match score (60% required, 25% preferred, 10% field, 5% location) with a breakdown of each score. Saved roles, plus filters for status, source and work authorization. A detail drawer has an AI or rule-based fit analysis, a skill plan linked to planned courses, academic availability from the Graduation Planner, CPT/OPT guidance from the International Advisor, and Study Board tasks added with confirmation. Optional live job-board data |
-| **CampusPilot Assistant** | One assistant across all modules, also reachable from the "Ask CampusPilot" box on the dashboard. Each answer shows which modules were used, the deterministic facts behind it, links to official sources, and action buttons (tasks need confirmation). Gemini, when enabled, receives only the facts relevant to the question: never the student's name, notes, or raw state |
+| **Dashboard** | Greeting, three live KPIs (weekly tasks, degree progress with projected graduation, next deadline), daily briefing, the "Ask CampusPilot" box, **Today's focus** (top 3 cross-module alerts, expandable), study-this-week ring with up-next items, graduation / international / internship cards, quick access |
+| **Smart Study Board** | **Week view** with day headings (Mon–Sun), **week navigation** (previous / next / back to this week), and an "Overdue from earlier weeks" section. There's also an "All tasks" view. Pastel sticky notes support add, edit and delete. Completed notes turn **gray with a green check (no strikethrough)**, with confetti and balloons; finishing the whole week triggers a bigger celebration. Overdue, < 2 h and < 24 h states, weekly progress per week, a rule-based study-week planner, and an "Ask what to focus on" link |
+| **Graduation Planner** | **Graduation timeline** (completed → in progress → each term → graduation, with conflict, overload and target markers) and a stacked credits bar (completed / in progress / planned / unscheduled). Also: a roadmap where each course can be moved, prerequisite validation, **"Why this delays you"** with a one-click move to the earliest valid term, scenario comparison with deterministic **"Why <date>?"** explanations, advisor email, and Ask CampusPilot |
+| **International Student Advisor** | **What CampusPilot can do / what only your DSO or USCIS can decide**, a timeline from cited USCIS timing rules, a guidance library, source-grounded Q&A, a checklist, DSO and advisor email drafts, and official sources in a **collapsible** list |
+| **Career Navigator** | **Search** (role, company, location, skills), **field filter**, plus saved / status / source / work-authorization filters. Explainable match scores, a fit-analysis drawer (AI or rule-based), CPT/OPT guidance, Study Board tasks with confirmation, **links from listings to their Study Board tasks**, optional live job boards |
+| **CampusPilot Assistant** | One assistant across all modules (also opened from Dashboard, Study Board, Graduation and International). It shows module chips, collapsible deterministic facts, **collapsible official sources**, a clear Gemini or rule-based label, a loading status, and confirmation-gated actions |
+
+## Implemented vs simulated
+
+| Area | Status |
+|---|---|
+| Student, courses, degree program, assignments, job listings | **Fictional demo data** (Reset demo data restores it) |
+| LearningBAU integration | **Simulated**: there is no real connection |
+| Reminders | **In-app only**: shown in the bell menu while CampusPilot is open. No push, email or scheduled notifications |
+| Credits, prerequisites, graduation dates, scenarios, delay explanations, match scores, F-1 timing dates | **Deterministic code**, the source of truth |
+| Assistant wording, career fit analysis, briefing rewrite, study-plan explanation | **Gemini free tier** (`gemini-3.5-flash-lite`) when a key is set. Assistant output is validated. Otherwise rule-based, and labeled as such |
+| Live internship listings | Real public Greenhouse/Lever data **only if configured**. Work authorization is always "Unknown" |
+| Data storage | Browser localStorage only. No accounts or backend database |
+
+See **[DEMO_GUIDE.md](DEMO_GUIDE.md)** for the 3–5 minute judge demo.
 
 ## Architecture
 

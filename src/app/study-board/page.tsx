@@ -1,14 +1,15 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { AlarmClock, Brain, Check, Clock, Pencil, Plus, Trash2, Wand2, X, NotebookPen, Flame } from "lucide-react";
+import { AlarmClock, Bot, Brain, CalendarDays, Check, ChevronLeft, ChevronRight, Clock, Flame, LayoutGrid, NotebookPen, Pencil, Plus, Trash2, Wand2, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useFeedback } from "@/components/feedback";
 import { Badge, Button, Card, inputCls, PageHeader, ProgressBar, SourceLabel } from "@/components/ui";
 import { askAI, useAiStatus } from "@/lib/ai-client";
 import {
-  deadlineState, formatDue, remainingLabel, startOfWeek, toLocalInputValue, weeklyAssignments, weeklyProgress, type DeadlineState,
+  addWeeks, deadlineState, formatDue, groupWeek, remainingLabel, startOfWeek, toLocalInputValue, weekLabel, weeklyAssignments, type DeadlineState,
 } from "@/lib/deadlines";
+import { useAskAssistant } from "@/lib/assistant/useAskAssistant";
 import { useCampus, useNow } from "@/lib/store";
 import type { Assignment, NoteColor, Priority } from "@/lib/types";
 import { buildWorkloadPlan } from "@/lib/workload";
@@ -53,7 +54,7 @@ function StickyNote({ a, i, now, onToggle, onEdit, onDelete }: {
       <span className={`absolute -top-2.5 left-1/2 h-5 w-16 -translate-x-1/2 rotate-[-3deg] rounded-sm ${done ? "bg-white/60" : "bg-white/70"} shadow-sm`} />
       {urgent && !done && (
         <span className="absolute -right-1.5 -top-1.5 flex h-4 w-4">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blush-deep opacity-60" />
+          <span className="absolute inline-flex h-full w-full motion-safe:animate-ping rounded-full bg-blush-deep opacity-60" />
           <span className="relative inline-flex h-4 w-4 rounded-full bg-blush-deep" />
         </span>
       )}
@@ -100,27 +101,34 @@ export default function StudyBoard() {
   const now = useNow(15_000);
   const ai = useAiStatus();
   const [filter, setFilter] = useState<Filter>("all");
-  const [dayFilter, setDayFilter] = useState<number | null>(null);
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [view, setView] = useState<"week" | "all">("week");
+  const askAssistant = useAskAssistant();
   const [form, setForm] = useState<FormState | null>(null);
   const [showPlan, setShowPlan] = useState(false);
   const [aiPlan, setAiPlan] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
 
-  const wp = weeklyProgress(assignments, now);
-  const weekStart = startOfWeek(now);
-  const days = Array.from({ length: 7 }, (_, i) => new Date(weekStart.getTime() + i * 86_400_000));
+  const shownWeekStart = addWeeks(startOfWeek(now), weekOffset);
+  const week = groupWeek(assignments, shownWeekStart, now);
+  const passes = (a: Assignment) => (filter === "all" ? true : filter === "active" ? !a.completed : a.completed);
 
-  const visible = useMemo(() => {
-    return assignments
-      .filter((a) => (filter === "all" ? true : filter === "active" ? !a.completed : a.completed))
-      .filter((a) => {
-        if (dayFilter === null) return true;
-        const d = new Date(a.dueDate);
-        return d >= days[dayFilter] && d < new Date(days[dayFilter].getTime() + 86_400_000);
-      })
-      .sort((a, b) => Number(a.completed) - Number(b.completed) || a.dueDate.localeCompare(b.dueDate));
+  const visible = useMemo(
+    () => assignments.filter(passes).sort((a, b) => Number(a.completed) - Number(b.completed) || a.dueDate.localeCompare(b.dueDate)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assignments, filter, dayFilter, weekStart.getTime()]);
+    [assignments, filter],
+  );
+  const editNote = (a: Assignment) => setForm({ id: a.id, course: a.course, title: a.title, due: toLocalInputValue(a.dueDate), priority: a.priority, color: a.color, estimatedHours: a.estimatedHours, notes: a.notes ?? "" });
+  const removeNote = (a: Assignment) => { deleteAssignment(a.id); toast("Assignment deleted", a.title, "info"); };
+  const renderNotes = (items: Assignment[]) => (
+    <div className="grid gap-5 pt-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+      <AnimatePresence mode="popLayout">
+        {items.map((a, i) => (
+          <StickyNote key={a.id} a={a} i={i} now={now} onToggle={() => handleToggle(a)} onEdit={() => editNote(a)} onDelete={() => removeNote(a)} />
+        ))}
+      </AnimatePresence>
+    </div>
+  );
 
   const workload = useMemo(() => buildWorkloadPlan(assignments, now), [assignments, now]);
 
@@ -157,9 +165,9 @@ export default function StudyBoard() {
       // Workflow: new assignment -> analyze deadline -> reminder generated -> dashboard updates
       const st = deadlineState(created, new Date());
       const when = remainingLabel(created, new Date());
-      const msg = st === "overdue" ? "This deadline has already passed." : st === "due-2h" ? "Due in under 2 hours — start now." : st === "due-24h" ? "Due within 24 hours — schedule focus time today." : `Reminders will fire at 24h and 2h before the deadline (${when}).`;
-      notify(`Reminder set: ${created.title}`, `${created.course} · ${formatDue(created.dueDate)}. ${msg}`, "study", `new-${created.id}`);
-      toast("Assignment added · reminder created", msg, st === "upcoming" ? "success" : "warning");
+      const msg = st === "overdue" ? "This deadline has already passed." : st === "due-2h" ? "Due in under 2 hours — start now." : st === "due-24h" ? "Due within 24 hours — schedule focus time today." : `In-app reminders will appear at 24h and 2h before the deadline while CampusPilot is open (${when}).`;
+      notify(`In-app reminder set: ${created.title}`, `${created.course} · ${formatDue(created.dueDate)}. ${msg}`, "study", `new-${created.id}`);
+      toast("Assignment added · in-app reminder set", msg, st === "upcoming" ? "success" : "warning");
     }
     setForm(null);
   }
@@ -179,38 +187,45 @@ export default function StudyBoard() {
   return (
     <div>
       <PageHeader eyebrow="Module 1" title="Smart Study Board" icon={NotebookPen} tone="butter"
-        subtitle="Your week as sticky notes. Deadlines are analyzed live, with 24-hour and 2-hour warnings and reminders.">
+        subtitle="Your week as sticky notes. Deadlines are analyzed live, with 24-hour and 2-hour warnings shown inside CampusPilot.">
         <Button variant="soft" onClick={() => setShowPlan((s) => !s)}><Brain size={16} /> {showPlan ? "Hide" : "Plan my"} study week</Button>
         <Button onClick={openNew}><Plus size={16} /> Add assignment</Button>
       </PageHeader>
 
-      {/* Progress + week strip */}
+      {/* Week navigation + progress */}
       <Card className="mb-6">
-        <div className="grid gap-5 lg:grid-cols-[280px_1fr] lg:items-center">
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,320px)_1fr] lg:items-center">
           <div>
-            <div className="flex items-baseline justify-between">
-              <p className="text-sm font-semibold">Weekly progress</p>
-              <p className="font-display text-2xl font-semibold">{wp.done}/{wp.total}</p>
+            <div className="flex items-center justify-between gap-2">
+              <button onClick={() => setWeekOffset((w) => w - 1)} className="rounded-full border border-line bg-white p-2 hover:bg-lavender" aria-label="Previous week"><ChevronLeft size={16} /></button>
+              <div className="text-center">
+                <p className="font-display text-lg font-semibold leading-tight">{weekLabel(shownWeekStart)}</p>
+                {week.isCurrent ? <p className="text-[11px] font-semibold text-lavender-deep">This week</p>
+                  : <button onClick={() => setWeekOffset(0)} className="text-[11px] font-semibold text-lavender-deep underline">Back to this week</button>}
+              </div>
+              <button onClick={() => setWeekOffset((w) => w + 1)} className="rounded-full border border-line bg-white p-2 hover:bg-lavender" aria-label="Next week"><ChevronRight size={16} /></button>
             </div>
-            <ProgressBar pct={wp.pct} tone="sage" className="mt-2" />
-            <p className="mt-2 text-xs text-muted">{wp.total - wp.done === 0 && wp.total ? "All done this week! 🎈" : `${wp.total - wp.done} left this week (incl. overdue) · finish all for a big celebration`}</p>
+            <div className="mt-3 flex items-baseline justify-between">
+              <p className="text-sm font-semibold">Weekly progress</p>
+              <p className="font-display text-2xl font-semibold">{week.done}/{week.total}</p>
+            </div>
+            <ProgressBar pct={week.pct} tone="sage" className="mt-1.5" />
+            <p className="mt-2 text-xs text-muted">
+              {week.total === 0 ? "No assignments due this week." : week.total - week.done === 0 ? "All done this week! 🎈" : `${week.total - week.done} left${week.isCurrent ? " (incl. overdue)" : ""} · finish all for a big celebration`}
+            </p>
           </div>
-          <div className="scrollbar-thin flex gap-2 overflow-x-auto pb-1">
-            {days.map((d, i) => {
-              const dayItems = assignments.filter((a) => { const t = new Date(a.dueDate); return t >= d && t < new Date(d.getTime() + 86_400_000); });
-              const isToday = d.toDateString() === now.toDateString();
-              const active = dayFilter === i;
-              const allDone = dayItems.length > 0 && dayItems.every((a) => a.completed);
+          <div className="scrollbar-thin flex gap-2 overflow-x-auto pb-1" role="list" aria-label="Days of the week">
+            {week.days.map((d, i) => {
+              const allDone = d.items.length > 0 && d.items.every((a) => a.completed);
               return (
-                <button key={i} onClick={() => setDayFilter(active ? null : i)}
-                  className={`flex min-w-[78px] flex-1 flex-col items-center rounded-2xl border px-2 py-2.5 transition ${active ? "border-ink bg-ink text-white" : isToday ? "border-lavender-deep/40 bg-lavender" : "border-line bg-white/70 hover:bg-white"}`}>
-                  <span className="text-[11px] font-semibold uppercase opacity-70">{d.toLocaleDateString("en-US", { weekday: "short" })}</span>
-                  <span className="font-display text-xl font-semibold">{d.getDate()}</span>
-                  <span className="mt-1 flex gap-0.5">
-                    {dayItems.length === 0 ? <span className="h-1.5 w-1.5 rounded-full bg-transparent" /> :
-                      dayItems.map((a) => <span key={a.id} className={`h-1.5 w-1.5 rounded-full ${a.completed ? "bg-sage-deep" : allDone ? "bg-sage-deep" : "bg-blush-deep"}`} />)}
+                <a key={i} href={`#day-${i}`} role="listitem" onClick={() => setView("week")}
+                  className={`flex min-w-[64px] flex-1 flex-col items-center rounded-2xl border px-2 py-2.5 transition ${d.isToday ? "border-lavender-deep/40 bg-lavender" : "border-line bg-white/70 hover:bg-white"}`}>
+                  <span className="text-[11px] font-semibold uppercase opacity-70">{d.date.toLocaleDateString("en-US", { weekday: "short" })}</span>
+                  <span className="font-display text-xl font-semibold">{d.date.getDate()}</span>
+                  <span className="mt-1 flex h-1.5 gap-0.5">
+                    {d.items.map((a) => <span key={a.id} className={`h-1.5 w-1.5 rounded-full ${a.completed || allDone ? "bg-sage-deep" : deadlineState(a, now) === "overdue" ? "bg-blush-deep" : "bg-butter-deep"}`} />)}
                   </span>
-                </button>
+                </a>
               );
             })}
           </div>
@@ -262,40 +277,64 @@ export default function StudyBoard() {
         )}
       </AnimatePresence>
 
-      {/* Filters */}
+      {/* Filters + view */}
       <div className="mb-5 flex flex-wrap items-center gap-2">
+        <div className="flex rounded-full border border-line bg-paper p-1" role="tablist" aria-label="Board view">
+          <button role="tab" aria-selected={view === "week"} onClick={() => setView("week")} className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${view === "week" ? "bg-ink text-white" : "text-muted"}`}><CalendarDays size={13} /> Week</button>
+          <button role="tab" aria-selected={view === "all"} onClick={() => setView("all")} className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${view === "all" ? "bg-ink text-white" : "text-muted"}`}><LayoutGrid size={13} /> All tasks</button>
+        </div>
         {(["all", "active", "completed"] as Filter[]).map((f) => (
           <button key={f} onClick={() => setFilter(f)}
-            className={`rounded-full px-4 py-1.5 text-sm font-semibold capitalize transition ${filter === f ? "bg-ink text-white" : "bg-paper text-muted hover:text-ink border border-line"}`}>
+            className={`rounded-full px-4 py-1.5 text-sm font-semibold capitalize transition ${filter === f ? "bg-ink text-white" : "border border-line bg-paper text-muted hover:text-ink"}`}>
             {f === "active" ? "Incomplete" : f} <span className="opacity-60">{counts[f]}</span>
           </button>
         ))}
-        {dayFilter !== null && (
-          <button onClick={() => setDayFilter(null)} className="inline-flex items-center gap-1 rounded-full bg-lavender px-3 py-1.5 text-xs font-semibold text-lavender-deep">
-            {days[dayFilter].toLocaleDateString("en-US", { weekday: "long" })} <X size={12} />
-          </button>
-        )}
+        <button onClick={() => askAssistant("What should I work on this week?")} className="inline-flex items-center gap-1.5 rounded-full bg-lavender px-3 py-1.5 text-xs font-semibold text-lavender-deep hover:bg-lavender-mid">
+          <Bot size={13} /> Ask what to focus on
+        </button>
         <span className="ml-auto"><SourceLabel kind="demo" /></span>
       </div>
 
-      {/* Board */}
-      <div className="grid gap-6 pt-2 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-        <AnimatePresence mode="popLayout">
-          {visible.map((a, i) => (
-            <StickyNote key={a.id} a={a} i={i} now={now}
-              onToggle={() => handleToggle(a)}
-              onEdit={() => setForm({ id: a.id, course: a.course, title: a.title, due: toLocalInputValue(a.dueDate), priority: a.priority, color: a.color, estimatedHours: a.estimatedHours, notes: a.notes ?? "" })}
-              onDelete={() => { deleteAssignment(a.id); toast("Assignment deleted", a.title, "info"); }}
-            />
-          ))}
-        </AnimatePresence>
-        <motion.button layout onClick={openNew}
-          className="flex min-h-[230px] flex-col items-center justify-center gap-2 rounded-[1.25rem] border-2 border-dashed border-line text-muted transition hover:border-lavender-deep hover:bg-lavender/40 hover:text-lavender-deep">
-          <Plus size={28} />
-          <span className="text-sm font-semibold">New sticky note</span>
-        </motion.button>
-      </div>
-      {visible.length === 0 && <p className="mt-4 text-center text-sm text-muted">No assignments match this filter.</p>}
+      {view === "week" ? (
+        <div className="space-y-6">
+          {week.carriedOver.filter(passes).length > 0 && (
+            <section aria-label="Overdue from earlier weeks" className="rounded-3xl border border-blush-mid bg-blush/30 p-4">
+              <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-blush-deep"><AlarmClock size={15} /> Overdue from earlier weeks</h2>
+              {renderNotes(week.carriedOver.filter(passes))}
+            </section>
+          )}
+          {week.days.map((d, i) => {
+            const items = d.items.filter(passes);
+            return (
+              <section key={i} id={`day-${i}`} aria-label={d.date.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })} className="scroll-mt-24">
+                <div className="mb-2 flex items-center gap-2 border-b border-line/80 pb-1.5">
+                  <h2 className="font-display text-lg font-semibold">{d.date.toLocaleDateString("en-US", { weekday: "long" })}</h2>
+                  <span className="text-sm text-muted">{d.date.toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                  {d.isToday && <Badge tone="lavender">Today</Badge>}
+                  <span className="ml-auto text-[11px] text-muted">{items.length ? `${items.filter((a) => a.completed).length}/${items.length} done` : ""}</span>
+                </div>
+                {items.length ? renderNotes(items) : <p className="py-1 text-xs text-muted">No deadlines{filter !== "all" ? " matching this filter" : ""}.</p>}
+              </section>
+            );
+          })}
+        </div>
+      ) : (
+        <>
+          <div className="grid gap-6 pt-2 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+            <AnimatePresence mode="popLayout">
+              {visible.map((a, i) => (
+                <StickyNote key={a.id} a={a} i={i} now={now} onToggle={() => handleToggle(a)} onEdit={() => editNote(a)} onDelete={() => removeNote(a)} />
+              ))}
+            </AnimatePresence>
+            <motion.button layout onClick={openNew}
+              className="flex min-h-[230px] flex-col items-center justify-center gap-2 rounded-[1.25rem] border-2 border-dashed border-line text-muted transition hover:border-lavender-deep hover:bg-lavender/40 hover:text-lavender-deep">
+              <Plus size={28} />
+              <span className="text-sm font-semibold">New sticky note</span>
+            </motion.button>
+          </div>
+          {visible.length === 0 && <p className="mt-4 text-center text-sm text-muted">No assignments match this filter.</p>}
+        </>
+      )}
 
       {/* Form modal */}
       <AnimatePresence>

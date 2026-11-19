@@ -1,7 +1,7 @@
 "use client";
 
 import confetti from "canvas-confetti";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, MotionConfig, motion } from "framer-motion";
 import { Check, Copy, Mail, PartyPopper, X } from "lucide-react";
 import { createContext, useCallback, useContext, useState } from "react";
 import { Button, inputCls, SourceLabel } from "./ui";
@@ -79,6 +79,7 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <Ctx.Provider value={{ toast, celebrate, openDraft }}>
+      <MotionConfig reducedMotion="user">
       {children}
 
       {/* Balloons */}
@@ -171,6 +172,7 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
           </motion.div>
         )}
       </AnimatePresence>
+      </MotionConfig>
     </Ctx.Provider>
   );
 }

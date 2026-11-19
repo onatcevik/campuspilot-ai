@@ -63,3 +63,48 @@ export function toLocalInputValue(iso: string): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
+
+export const DAY_MS = 86_400_000;
+
+export function addWeeks(weekStart: Date, n: number): Date {
+  const d = new Date(weekStart);
+  d.setDate(d.getDate() + n * 7);
+  return d;
+}
+
+const dayAt = (weekStart: Date, i: number) => {
+  const d = new Date(weekStart);
+  d.setDate(d.getDate() + i); // calendar arithmetic: safe across daylight-saving changes
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+
+export function weekLabel(weekStart: Date): string {
+  const f = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return `${f(dayAt(weekStart, 0))} – ${f(dayAt(weekStart, 6))}`;
+}
+
+/**
+ * Assignments for the week starting at `weekStart`, grouped by due day (Mon..Sun).
+ * For the CURRENT week, still-open items that were due before Monday are returned in `carriedOver`
+ * (they count toward this week's progress, matching weeklyAssignments()).
+ */
+export function groupWeek(list: Assignment[], weekStart: Date, now: Date) {
+  const start = dayAt(weekStart, 0).getTime();
+  const isCurrent = startOfWeek(now).getTime() === start;
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const from = dayAt(weekStart, i).getTime();
+    const to = dayAt(weekStart, i + 1).getTime();
+    const items = list
+      .filter((a) => { const t = new Date(a.dueDate).getTime(); return t >= from && t < to; })
+      .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+    const date = new Date(from);
+    return { date, items, isToday: date.toDateString() === now.toDateString() };
+  });
+  const carriedOver = isCurrent
+    ? list.filter((a) => !a.completed && new Date(a.dueDate).getTime() < start).sort((a, b) => a.dueDate.localeCompare(b.dueDate))
+    : [];
+  const all = [...carriedOver, ...days.flatMap((d) => d.items)];
+  const done = all.filter((a) => a.completed).length;
+  return { days, carriedOver, isCurrent, total: all.length, done, pct: all.length ? Math.round((done / all.length) * 100) : 0 };
+}

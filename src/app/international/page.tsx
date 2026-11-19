@@ -1,12 +1,13 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { BookOpen, CalendarDays, Check, ChevronDown, ExternalLink, Globe2, Link2, Mail, MessageCircleQuestion, RefreshCw, Search, ShieldAlert } from "lucide-react";
+import { BookOpen, Bot, CalendarDays, Check, CheckCircle2, ChevronDown, ExternalLink, Globe2, Link2, Mail, MessageCircleQuestion, RefreshCw, Search, ShieldAlert, ShieldX } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useFeedback } from "@/components/feedback";
 import { Badge, Button, Card, IconBubble, inputCls, PageHeader, SourceLabel, toneBg } from "@/components/ui";
 import { askAI } from "@/lib/ai-client";
-import { dsoEmail } from "@/lib/emails";
+import { useAskAssistant } from "@/lib/assistant/useAskAssistant";
+import { advisorEmail, dsoEmail } from "@/lib/emails";
 import { termToEndISO, termToGraduationDate, validatePlan } from "@/lib/graduation";
 import { buildMilestones, CHECKLIST, fmtDate, sourceById, SOURCES, TOPICS } from "@/lib/immigration";
 import { retrieve, type Passage } from "@/lib/retrieval";
@@ -47,6 +48,7 @@ export default function InternationalAdvisor() {
   const mismatch = intl.status === "F-1" && planEnd && planEnd > intl.programEndDate;
 
   const set = (p: Partial<IntlProfile>) => setIntl(p);
+  const askAssistant = useAskAssistant();
 
   async function ask(e?: React.FormEvent) {
     e?.preventDefault();
@@ -70,9 +72,25 @@ export default function InternationalAdvisor() {
         <Button variant="soft" onClick={() => openDraft({ title: "DSO email draft", ...dsoEmail(intl, v.projectedTerm?.id), source: "rule" })}><Mail size={16} /> Draft DSO email</Button>
       </PageHeader>
 
-      <div className="mb-6 flex items-start gap-3 rounded-3xl border border-butter-mid bg-butter/60 p-4 text-sm">
-        <ShieldAlert size={18} className="mt-0.5 shrink-0 text-butter-deep" />
-        <p><b>Not legal advice.</b> This prototype summarizes public guidance from USCIS and Study in the States. Rules change; always confirm with your Designated School Official (DSO) and the official sources linked below before acting.</p>
+      {/* General guidance vs individual decisions */}
+      <div className="mb-6 grid gap-3 md:grid-cols-[1fr_1fr]">
+        <div className="rounded-3xl border border-sage-mid bg-sage/50 p-4 text-sm">
+          <p className="mb-1.5 flex items-center gap-2 font-semibold text-sage-deep"><CheckCircle2 size={16} /> What CampusPilot can do</p>
+          <ul className="space-y-1 text-xs text-ink/80">
+            <li>• Summarize <b>general</b> rules from USCIS and Study in the States, with links</li>
+            <li>• Calculate planning dates from <b>cited timing rules</b> (e.g. the OPT filing window)</li>
+            <li>• Flag when your graduation plan and I-20 date disagree, and draft emails</li>
+          </ul>
+        </div>
+        <div className="rounded-3xl border border-butter-mid bg-butter/60 p-4 text-sm">
+          <p className="mb-1.5 flex items-center gap-2 font-semibold text-butter-deep"><ShieldX size={16} /> What only your DSO or USCIS can decide</p>
+          <ul className="space-y-1 text-xs text-ink/80">
+            <li>• Whether <b>you</b> are eligible for CPT, OPT or STEM OPT</li>
+            <li>• Authorizing any work, or extending your I-20</li>
+            <li>• Anything that depends on your full immigration history</li>
+          </ul>
+          <p className="mt-2 flex items-center gap-1 text-[11px] text-ink/70"><ShieldAlert size={12} /> Not legal advice. Rules change, so confirm with your DSO before acting.</p>
+        </div>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[360px_1fr]">
@@ -274,13 +292,22 @@ export default function InternationalAdvisor() {
                 <p className="text-xs text-muted">Pre-filled from your profile and graduation plan.</p>
               </div>
             </div>
-            <Button className="mt-3 w-full" onClick={() => openDraft({ title: "DSO email draft", ...dsoEmail(intl, v.projectedTerm?.id), source: "rule" })}>Generate DSO email</Button>
+            <div className="mt-3 grid gap-2">
+              <Button className="w-full" onClick={() => openDraft({ title: "DSO email draft", ...dsoEmail(intl, v.projectedTerm?.id), source: "rule" })}><Mail size={15} /> Draft DSO email</Button>
+              <Button variant="ghost" className="w-full" onClick={() => openDraft({ title: "Academic advisor email", ...advisorEmail(v), source: "rule" })}><Mail size={15} /> Draft advisor email</Button>
+              <Button variant="soft" className="w-full" onClick={() => askAssistant("What should I ask my academic advisor or DSO?")}><Bot size={15} /> Ask CampusPilot what to ask</Button>
+            </div>
+            <p className="mt-2 text-[10px] text-muted">Drafts open in an editor. Nothing is sent automatically.</p>
           </Card>
 
           {/* Sources */}
           <Card>
-            <h3 className="mb-2 font-semibold">Official sources</h3>
-            <ul className="space-y-1.5">
+            <details className="group">
+            <summary className="flex cursor-pointer list-none items-center justify-between font-semibold">
+              <span>Official sources <span className="text-xs font-normal text-muted">({SOURCES.length})</span></span>
+              <ChevronDown size={16} className="transition group-open:rotate-180" />
+            </summary>
+            <ul className="mt-2 space-y-1.5">
               {SOURCES.map((s) => (
                 <li key={s.id}>
                   <a href={s.url} target="_blank" rel="noopener noreferrer" className="group flex items-start gap-2 rounded-xl p-2 text-sm hover:bg-powder/50">
@@ -290,6 +317,7 @@ export default function InternationalAdvisor() {
                 </li>
               ))}
             </ul>
+            </details>
           </Card>
         </div>
       </div>

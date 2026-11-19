@@ -78,6 +78,7 @@ function AnswerCard({ m }: { m: BotMsg }) {
   const { plan, intl, assignments, addAssignment, notify } = useCampus();
   const { openDraft, toast } = useFeedback();
   const [showFacts, setShowFacts] = useState(false);
+  const [showSources, setShowSources] = useState(false);
   const [pending, setPending] = useState<{ action: Extract<ProposedAction, { kind: "create-task" }>; due: string } | null>(null);
   const [done, setDone] = useState<string[]>([]);
   const a = m.answer;
@@ -108,7 +109,7 @@ function AnswerCard({ m }: { m: BotMsg }) {
     const { id: _id, completed: _c, ...task } = res.assignment;
     void _id; void _c;
     const created = addAssignment(task);
-    notify(`Assistant task added: ${created.title}`, `Due ${formatDue(created.dueDate)}. Reminders at 24h and 2h.`, "assistant", `assistant-${created.id}`);
+    notify(`Assistant task added: ${created.title}`, `Due ${formatDue(created.dueDate)}. In-app reminders appear at 24h and 2h while CampusPilot is open.`, "assistant", `assistant-${created.id}`);
     toast("Added to Smart Study Board", created.title, "success");
     setDone((d) => [...d, pending.action.id]);
     setPending(null);
@@ -135,8 +136,10 @@ function AnswerCard({ m }: { m: BotMsg }) {
         </div>
         {a.officialSources.length > 0 && (
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted">Official sources</span>
-            {a.officialSources.map((s) => (
+            <button onClick={() => setShowSources((x) => !x)} aria-expanded={showSources} className="inline-flex items-center gap-1 text-[11px] font-semibold text-powder-deep">
+              <ChevronDown size={12} className={`transition ${showSources ? "rotate-180" : ""}`} /> {a.officialSources.length} official source{a.officialSources.length > 1 ? "s" : ""}
+            </button>
+            {showSources && a.officialSources.map((s) => (
               <a key={s.id} href={s.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-semibold text-powder-deep hover:underline">
                 {s.publisher}: {s.title.length > 34 ? s.title.slice(0, 32) + "…" : s.title} <ExternalLink size={9} />
               </a>
@@ -231,7 +234,7 @@ export default function Assistant() {
   return (
     <div>
       <PageHeader eyebrow="Module 5" title="CampusPilot Assistant" icon={Bot} tone="lavender"
-        subtitle="One companion across your Study Board, Graduation Plan, International timeline and Career matches. Credits, dates and scores are always calculated deterministically. Gemini only phrases the answer, and only after it passes verification.">
+        subtitle="One companion across all your modules. Credits, dates and scores are always calculated by CampusPilot; Gemini only phrases the answer, and only after it passes verification.">
         {ai === "gemini"
           ? <Badge tone="lavender"><Sparkles size={11} /> Gemini free tier · {aiInfo?.model}</Badge>
           : <Badge tone="neutral">{aiInfo && aiInfo.hasKey && !aiInfo.modelAllowed ? "AI off: model not on free-tier allowlist" : "Rule-based mode (Gemini not configured)"}</Badge>}
@@ -266,8 +269,9 @@ export default function Assistant() {
               {busy && (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex gap-2.5">
                   <span className="flex h-8 w-8 items-center justify-center rounded-2xl bg-lavender text-lavender-deep"><Bot size={15} /></span>
-                  <div className="flex items-center gap-1 rounded-3xl border border-line bg-cream/70 px-4 py-3" aria-label="Thinking">
-                    {[0, 1, 2].map((i) => <motion.span key={i} className="h-2 w-2 rounded-full bg-lavender-deep" animate={{ y: [0, -4, 0] }} transition={{ repeat: Infinity, duration: 0.8, delay: i * 0.15 }} />)}
+                  <div className="flex items-center gap-2 rounded-3xl border border-line bg-cream/70 px-4 py-3" aria-label="Thinking" role="status">
+                    <span className="flex gap-1">{[0, 1, 2].map((i) => <motion.span key={i} className="h-2 w-2 rounded-full bg-lavender-deep" animate={{ y: [0, -4, 0] }} transition={{ repeat: Infinity, duration: 0.8, delay: i * 0.15 }} />)}</span>
+                    <span className="text-xs text-muted">{ai === "gemini" ? "Checking your modules, then asking Gemini…" : "Checking your modules…"}</span>
                   </div>
                 </motion.div>
               )}
