@@ -23,7 +23,7 @@ export async function POST(req: Request) {
     context: body.context ?? {},
     format: body.format === "json" ? "json" : "text",
   });
-  if (r.ok) return NextResponse.json({ source: "gemini", model: r.model, cached: r.cached, ...(r.data !== undefined ? { data: r.data } : { text: r.text }) });
+  if (r.ok) return NextResponse.json({ source: "gemini", model: r.model, servedModel: r.servedModel, cached: r.cached, ...(r.data !== undefined ? { data: r.data } : { text: r.text }) });
   const source = r.reason === "missing-key" || r.reason === "invalid-key" || r.reason === "model-not-allowed" ? "unavailable" : r.reason === "quota" || r.reason === "local-limit" ? "quota" : "error";
   return NextResponse.json({ source, reason: r.reason, message: r.message, ...(r.retryAfterSec ? { retryAfterSec: r.retryAfterSec } : {}) });
 }

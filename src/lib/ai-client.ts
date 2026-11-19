@@ -42,7 +42,7 @@ export function useAiInfo() {
 
 /** Result of a model call, including WHY it failed so the UI can explain the fallback. */
 export type ModelResult =
-  | { ok: true; data: unknown; model?: string }
+  | { ok: true; data: unknown; model?: string; servedModel?: string | null; cached?: boolean }
   | { ok: false; reason: string; message: string; retryAfterSec?: number };
 
 export async function askAIDetailed(task: string, prompt: string, context: unknown): Promise<ModelResult> {
@@ -53,7 +53,7 @@ export async function askAIDetailed(task: string, prompt: string, context: unkno
       body: JSON.stringify({ task, prompt, context, format: "json" }),
     });
     const d = await res.json();
-    if (d.source === "gemini" && d.data && typeof d.data === "object") return { ok: true, data: d.data, model: d.model };
+    if (d.source === "gemini" && d.data && typeof d.data === "object") return { ok: true, data: d.data, model: d.model, servedModel: d.servedModel ?? null, cached: !!d.cached };
     return { ok: false, reason: String(d.reason ?? "unavailable"), message: String(d.message ?? "Gemini is unavailable."), ...(d.retryAfterSec ? { retryAfterSec: Number(d.retryAfterSec) } : {}) };
   } catch {
     return { ok: false, reason: "network", message: "Couldn't reach the CampusPilot server." };

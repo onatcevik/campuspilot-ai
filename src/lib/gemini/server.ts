@@ -19,7 +19,7 @@ export type GeminiFailureReason =
   | "model-mismatch" | "timeout" | "upstream-error" | "invalid-response" | "bad-request";
 
 export type GeminiResult =
-  | { ok: true; text: string; data?: unknown; model: string; cached: boolean }
+  | { ok: true; text: string; data?: unknown; model: string; servedModel: string | null; cached: boolean }
   | { ok: false; reason: GeminiFailureReason; message: string; retryAfterSec?: number };
 
 export interface GeminiRequest { task: string; prompt: string; context: unknown; format: "text" | "json" }
@@ -166,12 +166,12 @@ export function createGeminiClient(cfg: GeminiConfig = {}) {
     if (!text) return fail("invalid-response");
     if (req.format === "json") {
       try {
-        return { ok: true, text, data: JSON.parse(text.replace(/^```(?:json)?\s*|\s*```$/g, "")), model, cached: false };
+        return { ok: true, text, data: JSON.parse(text.replace(/^```(?:json)?\s*|\s*```$/g, "")), model, servedModel: data.modelVersion ?? null, cached: false };
       } catch {
         return fail("invalid-response");
       }
     }
-    return { ok: true, text, model, cached: false };
+    return { ok: true, text, model, servedModel: data.modelVersion ?? null, cached: false };
   }
 
   async function generate(req: GeminiRequest): Promise<GeminiResult> {

@@ -9,7 +9,7 @@ export type { AssistantContext, AssistantModule } from "./context";
 export { applyAction, type ProposedAction } from "./actions";
 
 export type AskModelResult =
-  | { ok: true; data: unknown; model?: string }
+  | { ok: true; data: unknown; model?: string; servedModel?: string | null }
   | { ok: false; reason: string; message: string; retryAfterSec?: number };
 export type AskModel = (task: string, prompt: string, payload: unknown) => Promise<AskModelResult>;
 
@@ -39,6 +39,7 @@ export async function answerQuestion(
   const r = await opts.askModel("assistant", PROMPT, payload);
   if (!r.ok) return { answer: { ...rule, notice: fallbackNotice(r) }, ctx };
   const v = validateAIAnswer(r.data, ctx, rule);
-  if (v.ok) return { answer: { ...v.answer, model: r.model }, ctx };
+  // Show the model Google reports it actually used (modelVersion); fall back to the configured name.
+  if (v.ok) return { answer: { ...v.answer, model: r.servedModel || r.model }, ctx };
   return { answer: { ...rule, notice: `Gemini's answer was withheld because it failed verification (${v.reasons.join(" ")}). Showing the rule-based answer.` }, ctx };
 }

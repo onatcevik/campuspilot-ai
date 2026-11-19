@@ -38,7 +38,7 @@ describe("model selection", () => {
   it("calls the pinned model with the key in a header, minimal thinking, JSON mode", async () => {
     const f = vi.fn(async () => json(okBody('{"answer":"ok"}', "gemini-3.5-flash-lite-002")));
     const r = await client(f).c.generate(req());
-    expect(r).toMatchObject({ ok: true, data: { answer: "ok" }, model: DEFAULT_MODEL });
+    expect(r).toMatchObject({ ok: true, data: { answer: "ok" }, model: DEFAULT_MODEL, servedModel: "gemini-3.5-flash-lite-002" });
     const [url, init] = f.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe(`https://generativelanguage.googleapis.com/v1beta/models/${DEFAULT_MODEL}:generateContent`);
     expect(url).not.toContain(KEY); // key never in the URL
