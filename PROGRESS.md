@@ -29,7 +29,18 @@
 - [x] Dashboard "Ask CampusPilot" entry (handoff via sessionStorage, not the URL). Mobile layout checked at 375 px
 - [x] 29 new tests (91 total). The safety checks were mutation-tested: disabling each one makes a test fail
 
+## Gemini free-tier integration (verified with the real API, not yet committed)
+- [x] Model checked on the official pricing page: `gemini-3.5-flash-lite` (free tier, "Free of charge"). `gemini-2.5-flash` is deprecated and auto-routed from Dec 1, 2026, so it's no longer used
+- [x] Server-only client (`lib/gemini/server.ts`): free-tier model allowlist, `modelVersion` check (no silent switching), 8/min and 150/day local limits (hard caps 10 and 200), 10-minute cache, de-duplication, 20 s timeout, no retries; 429 triggers a cooldown, invalid key or billing errors pause calls
+- [x] **Real API checks:** graduation + career question → Gemini answer that passed validation (`gemini-3.5-flash-lite`); F-1/CPT question → Gemini answer citing the official passage S1; repeat question served from cache (no extra quota); invalid key → real Google error mapped to a clear message; local limit blocked the 2nd call (1 upstream call)
+- [x] Fallbacks shown in the UI: missing key (real server), quota (real server module with an injected 429, plus a UI check)
+- [x] Bug found by real output and fixed: grouped citations like `[F7, F9]` were wrongly flagged as invented numbers (regression test added)
+- [x] Key scan: 0 matches in tracked files, full git history, diff, source, client bundle, server build and server logs
+- [x] 112 tests passing
+
 ## Remaining / nice to have
+- [ ] A real HTTP 429 from Google wasn't triggered on purpose (to avoid using up the free quota). Covered with an injected 429 instead
+- [ ] Other Gemini features (dashboard briefing rewrite, study-plan explanation, career fit analysis, immigration Q&A) use the same safeguarded route but weren't each tested with the real API
 - [ ] Gemini assistant path not tested with a real key (validator and orchestration are covered by unit tests with mocked model responses)
 - [ ] Test the Gemini fit analysis with a real key (sanitizer is unit-tested; only the fallback has been checked in the UI)
 - [ ] Live listings: skill extraction is keyword-based, so many real postings yield few skills and show "—" for the score

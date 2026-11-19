@@ -127,6 +127,14 @@ describe("AI response validation", () => {
     expect(v.ok).toBe(true);
   });
 
+  it("handles grouped citations like [F7, F9] (regression: real Gemini output)", () => {
+    const ids = ctx.facts.slice(0, 2).map((f) => f.id);
+    const ok = validateAIAnswer({ answer: `Your plan is tight [${ids.join(", ")}]. CPT is decided by your DSO [S1].`, citedFacts: ids, citedSources: ["S1"] }, ctx, fallback);
+    expect(ok.ok).toBe(true);
+    const bad = validateAIAnswer({ answer: `Your plan is tight [${ids[0]}, F999]. CPT is decided by your DSO [S1].`, citedFacts: [ids[0]], citedSources: ["S1"] }, ctx, fallback);
+    expect(bad.ok).toBe(false);
+  });
+
   it("rejects citations to facts or sources that weren't provided", () => {
     expect(validateAIAnswer({ ...good, citedFacts: ["F999"] }, ctx, fallback).ok).toBe(false);
     expect(validateAIAnswer({ ...good, answer: good.answer + " [S42]" }, ctx, fallback).ok).toBe(false);
@@ -214,18 +222,23 @@ describe("orchestration and cross-module actions", () => {
     const askModel = vi.fn(async (_t: string, _p: string, payload: unknown) => {
       const facts = (payload as { facts: { id: string; text: string }[] }).facts;
       const f = facts.find((x) => x.text.startsWith("This week"))!;
-      return { answer: `Check your weekly progress [${f.id}].`, citedFacts: [f.id], citedSources: [] };
+      return { ok: true as const, model: "gemini-3.5-flash-lite", data: { answer: `Check your weekly progress [${f.id}].`, citedFacts: [f.id], citedSources: [] } };
     });
     const { answer } = await answerQuestion(Q.week, state(), NOW, { aiEnabled: true, askModel });
     expect(answer.source).toBe("gemini");
+    expect(answer.model).toBe("gemini-3.5-flash-lite");
     expect(JSON.stringify(askModel.mock.calls[0][2])).not.toMatch(/Alex|Morgan/);
   });
 
   it("falls back with a visible notice when Gemini fails or is rejected", async () => {
-    const down = await answerQuestion(Q.week, state(), NOW, { aiEnabled: true, askModel: async () => null });
+    const down = await answerQuestion(Q.week, state(), NOW, { aiEnabled: true, askModel: async () => ({ ok: false, reason: "upstream-error", message: "Gemini is temporarily unavailable." }) });
     expect(down.answer.source).toBe("rule");
-    expect(down.answer.notice).toMatch(/didn't respond/);
-    const bad = await answerQuestion(Q.week, state(), NOW, { aiEnabled: true, askModel: async () => ({ answer: "You have 99 assignments.", citedFacts: [] }) });
+    expect(down.answer.notice).toMatch(/temporarily unavailable.*rule-based/);
+    const quota = await answerQuestion(Q.week, state(), NOW, { aiEnabled: true, askModel: async () => ({ ok: false, reason: "quota", message: "The Gemini free-tier limit was reached.", retryAfterSec: 37 }) });
+    expect(quota.answer.source).toBe("rule");
+    expect(quota.answer.notice).toMatch(/free-tier limit.*37s.*rule-based.*No charges/);
+    expect(quota.answer.actions.length).toBeGreaterThan(0); // fallback stays fully functional
+    const bad = await answerQuestion(Q.week, state(), NOW, { aiEnabled: true, askModel: async () => ({ ok: true, data: { answer: "You have 99 assignments.", citedFacts: [] } }) });
     expect(bad.answer.source).toBe("rule");
     expect(bad.answer.notice).toMatch(/withheld/);
   });

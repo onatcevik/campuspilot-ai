@@ -7,7 +7,8 @@ export type ValidationResult = { ok: true; answer: AssistantAnswer } | { ok: fal
 
 const MAX_LEN = 1500;
 const FORM_TOKENS = /\b(F-1|I-20|I-765|I-983|H-1B|8 CFR 214\.2)\b/gi;
-const CITATION = /\[(?:F|S)\d+\]/g;
+// Matches single and grouped citations: [F3], [S1], [F7, F9], [F2, S1]
+const CITATION = /\[\s*[FS]\d+(?:\s*,\s*[FS]\d+)*\s*\]/g;
 const NUMBER = /\d+(?:[.,]\d+)?/g;
 /** Decisions this assistant must never make. */
 const DECISION = /\b(you are|you're|you will be|you'll be|you are not|you're not)\s+(?:\w+\s+){0,2}(eligible|ineligible|authorized|approved|allowed to work)\b|\byou (qualify|do not qualify|don't qualify)\b|\bguarantee[sd]?\b/i;
@@ -33,8 +34,9 @@ export function validateAIAnswer(raw: unknown, ctx: AssistantContext, fallback: 
   const passageIds = new Set(ctx.passages.map((p) => p.id));
   const citedFacts = Array.isArray(r.citedFacts) ? r.citedFacts.filter((x): x is string => typeof x === "string") : [];
   const citedSources = Array.isArray(r.citedSources) ? r.citedSources.filter((x): x is string => typeof x === "string") : [];
-  const inlineFacts = [...text.matchAll(/\[(F\d+)\]/g)].map((m) => m[1]);
-  const inlineSources = [...text.matchAll(/\[(S\d+)\]/g)].map((m) => m[1]);
+  const inlineIds = [...text.matchAll(CITATION)].flatMap((m) => m[0].replace(/[[\]\s]/g, "").split(","));
+  const inlineFacts = inlineIds.filter((id) => id.startsWith("F"));
+  const inlineSources = inlineIds.filter((id) => id.startsWith("S"));
   const allFacts = [...new Set([...citedFacts, ...inlineFacts])];
   const allSources = [...new Set([...citedSources, ...inlineSources])];
 

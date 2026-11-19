@@ -15,21 +15,44 @@ npm run dev
 
 Open http://localhost:3000. The app runs with no API key.
 
-### Optional: Gemini
+### Optional: Gemini (free tier only)
+
+CampusPilot calls Gemini **only from the server** (`/api/ai`). The key is never sent to the browser, never returned in responses, and never logged.
+
+**Free-tier safeguards in code**
+- Model allowlist: `gemini-3.5-flash-lite` (default) and `gemini-3.1-flash-lite`. Both are listed as "Free of charge" on the Free Tier on the official pricing page (checked Nov 2026). Any other model turns AI off. No automatic model switching, and answers served by a different `modelVersion` are discarded.
+- Local limits: 8 requests/minute and 150/day by default. Hard caps of 10 and 200 can't be raised through environment variables.
+- 10-minute cache and de-duplication of identical requests, 20 s timeout, no automatic retries.
+- HTTP 429 (quota): the server stops calling Gemini for the retry delay Google returns (60 s if none). The UI shows the reason and uses the rule-based answer.
+- HTTP 401/402/403 (billing, permissions, verification): a 10-minute pause, never retried in a loop.
+
+**What code cannot guarantee:** if a billing account is linked to your Google Cloud project, that project is on a paid tier and usage can be charged. Code can't change that. Keep the project on the **Free** tier, as described below.
+
+**Setup**
+1. Open **https://aistudio.google.com** and sign in.
+2. Go to **Dashboard → API Keys → Create API key**. New accounts get a default project.
+3. Go to **Dashboard → Projects**. In the **Billing Tier** column, the project should show **Free**, with a "Set up billing" link. That link means no billing account is attached. Don't click it.
+4. In the project folder, copy `.env.example` to `.env.local` and paste the key after `GEMINI_API_KEY=`. `.env.local` is git-ignored.
+5. Restart `npm run dev`. The sidebar should show "Gemini connected" and the assistant should show "Gemini free tier · gemini-3.5-flash-lite".
+
+To check the key without printing it:
 
 ```bash
-cp .env.example .env.local   # then set GEMINI_API_KEY
-npm run dev
+grep -qE '^GEMINI_API_KEY=[^[:space:]"]+$' .env.local && echo "Key is set" || echo "Key missing"
 ```
 
-Once a key is set, the sidebar shows "Gemini connected" and these features use Gemini through the server route `/api/ai`. The key never reaches the browser:
+**Fallback messages you may see** (the assistant always still answers, using rule-based logic):
 
-- Dashboard: "Rewrite with Gemini" for the daily briefing
-- Study Board: "Explain with Gemini" for the study plan
-- International Advisor: answers grounded only in passages from the curated official-source library
-- AI Assistant: chat that gets a snapshot of every module as context
+| Situation | What the assistant shows |
+|---|---|
+| No key | "Rule-based mode (Gemini not configured)" |
+| Wrong key | "Gemini rejected the API key. Check GEMINI_API_KEY in .env.local…" |
+| Free quota used up (429) | "The Gemini free-tier limit was reached. Try again in about N s… No charges are made by falling back." |
+| CampusPilot's own limit | "CampusPilot's own request limit was reached to protect your free quota." |
+| Model not on the allowlist | "AI off: model not on free-tier allowlist" |
+| AI answer fails verification | "Gemini's answer was withheld because it failed verification (reason)…" |
 
-Without a key, each of these falls back to deterministic logic, and the output is labeled **"Rule-based (deterministic)"**.
+Free-tier prompts may be used by Google to improve its products. CampusPilot sends only minimized, fictional demo facts, never names, notes or keys.
 
 ### Optional: live internship data
 
@@ -67,7 +90,7 @@ Vitest covers match calculations (including a regression check against the origi
 | Work-authorization label | From the listing text only. Live listings are always "Unknown" | Demo or live listing |
 | Career tasks on the Study Board | Deterministic suggestions, added only after the user confirms | Study Board (localStorage) |
 | **CampusPilot Assistant: answer facts** (credits, prerequisites, dates, scenarios, match scores, workload) | Always deterministic: the existing engines produce numbered facts `F#` | Only the modules the question needs |
-| **Assistant: answer wording** | **Gemini** when a key is set. The answer must cite facts `[F#]` and official passages `[S#]`. It's rejected if it uses numbers not in the facts, cites anything unknown, makes an eligibility decision, or makes a sponsorship claim. Otherwise, or if rejected, a rule-based answer is shown with the reason | Facts + official-source library |
+| **Assistant: answer wording** | **Gemini (`gemini-3.5-flash-lite`, free tier). Verified with real API responses on Nov 19, 2026.** Active when a key is set. The answer must cite facts `[F#]` and official passages `[S#]`. It's rejected if it uses numbers not in the facts, cites anything unknown, makes an eligibility decision, or makes a sponsorship claim. Otherwise, or if rejected, a rule-based answer is shown with the reason | Facts + official-source library |
 | **Assistant actions** (Study Board tasks, advisor/DSO email drafts, navigation) | Always deterministic. The model can't add actions, and tasks are created only after explicit confirmation | Study Board (localStorage) |
 | Daily briefing, study-plan explanation | Gemini when a key is set, rule-based otherwise | All modules |
 | Student, courses, degree program | | **Fictional demo data** |

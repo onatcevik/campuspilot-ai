@@ -15,6 +15,7 @@ export interface AssistantAnswer {
   officialSources: OfficialSource[];
   actions: ProposedAction[];
   notice?: string; // e.g. why an AI answer was withheld
+  model?: string; // Gemini model that produced the wording (only when source === "gemini")
 }
 
 interface Section { text: string[]; facts: string[]; sources: string[]; actions: ProposedAction[] }
