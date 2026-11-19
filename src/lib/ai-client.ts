@@ -30,3 +30,18 @@ export async function askAI(task: string, prompt: string, context: unknown): Pro
     return null;
   }
 }
+
+/** JSON variant. Returns the parsed object, or null (not configured / failed / invalid) so callers fall back. */
+export async function askAIJson(task: string, prompt: string, context: unknown): Promise<unknown | null> {
+  try {
+    const res = await fetch("/api/ai", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ task, prompt, context, format: "json" }),
+    });
+    const data = await res.json();
+    return data.source === "gemini" && data.data && typeof data.data === "object" ? data.data : null;
+  } catch {
+    return null;
+  }
+}

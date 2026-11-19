@@ -31,6 +31,44 @@ Once a key is set, the sidebar shows "Gemini connected" and these features use G
 
 Without a key, each of these falls back to deterministic logic, and the output is labeled **"Rule-based (deterministic)"**.
 
+### Optional: live internship data
+
+```bash
+# in .env.local
+JOB_LEVER_COMPANIES=examplecompany
+JOB_GREENHOUSE_BOARDS=exampleboard
+```
+
+`/api/jobs` reads the **public** Greenhouse and Lever job-board APIs on the server. No key is needed and no student data is sent. It keeps DC/VA/MD internship, co-op and new-grad tech roles, caches results for 30 minutes, and handles each board separately, so one failing board doesn't break the page. A live listing shows:
+
+- an apply link that is verified to be `https` on `greenhouse.io` / `lever.co`
+- the provider's posting date ("Posted" or "Updated"), with a warning when it's more than 120 days old
+- the provider's deadline only when the API supplies one
+
+**Work authorization for live listings is always "Unknown".** It is never inferred from posting text.
+
+### Tests
+
+```bash
+npm test
+```
+
+Vitest covers match calculations (including a regression check against the original demo scores), filtering, saved jobs, application tracking, cross-module sync, the AI-output sanitizer and the job normalizers.
+
+## What is AI, what is deterministic, what is demo data
+
+| Feature | Logic | Data |
+|---|---|---|
+| Match score and score breakdown | Deterministic (weighted skill coverage) | Demo listings, plus live listings if configured |
+| Career fit analysis | **Gemini** when a key is set, deterministic otherwise. AI output is validated against verified facts, and unsupported skills, courses or employer-policy claims are removed | Profile skills, the listing, the graduation plan |
+| Skill-development plan | Deterministic. With Gemini, the wording is AI-written, but skills and courses are still checked against verified data | Graduation Planner courses |
+| Academic availability | Deterministic heuristic (planned credits per term) | Graduation Planner |
+| CPT/OPT guidance per listing | Deterministic: cited USCIS rules plus what the listing itself states | International Advisor profile |
+| Work-authorization label | From the listing text only. Live listings are always "Unknown" | Demo or live listing |
+| Career tasks on the Study Board | Deterministic suggestions, added only after the user confirms | Study Board (localStorage) |
+| Daily briefing, assistant chat, study-plan explanation | Gemini when a key is set, rule-based otherwise | All modules |
+| Student, courses, degree program | | **Fictional demo data** |
+
 ### Production build
 
 ```bash
@@ -45,7 +83,7 @@ npm run build && npm start
 | **Smart Study Board** | Sticky-note CRUD. Completed notes turn gray with a green check (no strikethrough) and trigger confetti and balloons; finishing the whole week triggers a bigger celebration. Also: 24h/2h/overdue states, a weekly progress bar, a day strip, filters, in-app reminders and a rule-based study-week planner |
 | **Graduation Planner** | Fictional 120-credit B.S. SWE program. Credit and requirement progress, a semester roadmap where each course can be moved with a dropdown, deterministic prerequisite validation, overload checks, projected graduation date, a prerequisite map, Standard vs. Accelerated scenarios from a critical-path scheduler, and an advisor email draft |
 | **International Student Advisor** | Guidance on F-1, CPT, OPT, STEM OPT and working with the DSO, with official source links. Timeline dates come from cited USCIS timing rules (90 days before / 60 days after the program end); items without a rule are labeled planning guidance. Also: checklist, DSO email, retrieval over curated official summaries, and a link to the Graduation Planner that flags an I-20 extension risk |
-| **Career Navigator** | Skill-match score (60% required skills, 25% preferred, 10% field, 5% location) with an explanation of each score, saved roles, application status tracking, four work-authorization categories (confirmed / verification required / unknown / restricted) and resume tips based on skill gaps |
+| **Career Navigator** | Skill-match score (60% required, 25% preferred, 10% field, 5% location) with a breakdown of each score. Saved roles, plus filters for status, source and work authorization. A detail drawer has an AI or rule-based fit analysis, a skill plan linked to planned courses, academic availability from the Graduation Planner, CPT/OPT guidance from the International Advisor, and Study Board tasks added with confirmation. Optional live job-board data |
 | **AI Assistant** | Chat that can read every module, with a live feed of automation alerts |
 
 ## Architecture
@@ -54,6 +92,9 @@ npm run build && npm start
 - `src/lib/types.ts` holds the domain interfaces (Student, Course, Assignment, DegreeRequirement, Prerequisite, SemesterPlan, ImmigrationMilestone, CareerOpportunity, Recommendation)
 - `src/lib/store.tsx` is a React context that persists to `localStorage`. It can be swapped for a database later.
 - Pure logic engines: `graduation.ts`, `immigration.ts`, `matching.ts`, `recommendations.ts`, `workload.ts`, `assistant.ts`, `retrieval.ts`
+- `profile.ts`: the shared student profile, derived from the store, the graduation plan and the international profile, so modules don't duplicate data
+- Career: `career-analysis.ts` (analysis and AI sanitizer), `career-guidance.ts`, `career-tasks.ts`, `career-state.ts`
+- `jobs/normalize.ts` (pure) and `jobs/providers.ts` (server) back the `/api/jobs` route
 - `src/app/api/ai/route.ts` is the server-side Gemini proxy and falls back cleanly when no key is set
 
 Use **Reset demo data** in the sidebar to restore the original demo state. Assignment due dates are seeded relative to the current time, so the warning states always appear during a demo.

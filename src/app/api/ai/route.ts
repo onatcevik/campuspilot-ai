@@ -4,11 +4,12 @@ import { NextResponse } from "next/server";
 const MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
 const SYSTEM = `You are CampusPilot AI, a concise, warm student-success assistant for a university hackathon demo.
-All student, course, and job data you receive is FICTIONAL demo data.
+The student and course data you receive is FICTIONAL demo data. Job listings are either fictional demo listings or real postings, as labeled in the context.
 Rules:
 - Use only the provided context. Do not invent deadlines, policies, employers' sponsorship decisions, or university approvals.
 - For F-1, CPT, OPT, or STEM OPT topics: give general information only, cite the official sources provided (USCIS, Study in the States), and tell the student to confirm with their DSO. This is not legal advice.
-- Keep answers under 180 words, using short paragraphs or bullets. Plain text, no markdown headings.`;
+- Keep answers under 180 words, using short paragraphs or bullets. Plain text, no markdown headings.
+- When asked for JSON, return only a JSON object matching the requested schema.`;
 
 export async function GET() {
   return NextResponse.json({ configured: Boolean(process.env.GEMINI_API_KEY), model: MODEL });
@@ -18,7 +19,7 @@ export async function POST(req: Request) {
   const key = process.env.GEMINI_API_KEY;
   if (!key) return NextResponse.json({ source: "unavailable", reason: "GEMINI_API_KEY not configured" });
 
-  let body: { task?: string; prompt?: string; context?: unknown };
+  let body: { task?: string; prompt?: string; context?: unknown; format?: "text" | "json" };
   try {
     body = await req.json();
   } catch {
@@ -34,7 +35,11 @@ export async function POST(req: Request) {
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: SYSTEM }] },
         contents: [{ role: "user", parts: [{ text: `Task: ${body.task ?? "chat"}\n\nStudent context (JSON):\n${context}\n\nRequest:\n${prompt}` }] }],
-        generationConfig: { temperature: 0.4, maxOutputTokens: 600 },
+        generationConfig: {
+          temperature: body.format === "json" ? 0.2 : 0.4,
+          maxOutputTokens: body.format === "json" ? 900 : 600,
+          ...(body.format === "json" ? { responseMimeType: "application/json" } : {}),
+        },
       }),
       signal: AbortSignal.timeout(20000),
     });
@@ -42,6 +47,13 @@ export async function POST(req: Request) {
     const data = await res.json();
     const text: string = (data?.candidates?.[0]?.content?.parts ?? []).map((p: { text?: string }) => p.text ?? "").join("").trim();
     if (!text) return NextResponse.json({ source: "error", reason: "Empty response" });
+    if (body.format === "json") {
+      try {
+        return NextResponse.json({ source: "gemini", data: JSON.parse(text.replace(/^```(?:json)?\s*|\s*```$/g, "")) });
+      } catch {
+        return NextResponse.json({ source: "error", reason: "Model returned invalid JSON" });
+      }
+    }
     return NextResponse.json({ source: "gemini", text });
   } catch {
     return NextResponse.json({ source: "error", reason: "Gemini request failed" });

@@ -62,6 +62,8 @@ export interface Assignment {
   color: NoteColor;
   estimatedHours: number;
   notes?: string;
+  /** Set when a task was created from another module (e.g. Career Navigator) after user confirmation. */
+  origin?: { module: "career"; opportunityId: string };
 }
 
 export type MilestoneKind = "verified-rule" | "planning-guidance";
@@ -92,6 +94,21 @@ export type CareerField =
   | "Cybersecurity"
   | "Cloud Computing";
 
+/** Where a listing came from. Demo listings are fictional; live listings come from a public job-board API. */
+export type JobSource =
+  | { kind: "demo" }
+  | {
+      kind: "live";
+      provider: "greenhouse" | "lever";
+      providerLabel: string;
+      boardId: string;
+      applyUrl: string; // verified https URL returned by the provider API
+      postedAt?: string; // ISO
+      postedAtLabel: "Posted" | "Updated";
+      deadline?: string; // ISO, only when the provider API supplies one
+      fetchedAt: string; // ISO
+    };
+
 export interface CareerOpportunity {
   id: string;
   company: string;
@@ -106,13 +123,15 @@ export interface CareerOpportunity {
   workAuth: WorkAuthStatus;
   workAuthNote: string;
   description: string;
+  source: JobSource;
+  /** true when skills were keyword-extracted from posting text rather than curated. */
+  skillsExtracted?: boolean;
 }
 
 export interface CareerProfile {
   skills: string[];
   interests: CareerField[];
   preferredRegions: CareerOpportunity["region"][];
-  internshipAvailability: string;
 }
 
 export interface IntlProfile {

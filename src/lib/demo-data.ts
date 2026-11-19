@@ -177,7 +177,6 @@ export const DEFAULT_CAREER: CareerProfile = {
   skills: ["TypeScript", "React", "Python", "SQL", "Git", "Figma", "HTML/CSS", "Statistics"],
   interests: ["Software Engineering", "Artificial Intelligence", "Machine Learning"],
   preferredRegions: ["Washington, DC", "Northern Virginia"],
-  internshipAvailability: "Summer 2027 (full-time) · part-time during semesters",
 };
 
 export const SKILL_LIBRARY = [
@@ -187,7 +186,7 @@ export const SKILL_LIBRARY = [
   "Data Visualization", "Figma", "HTML/CSS", "REST APIs", "Terraform", "Splunk", "Agile",
 ];
 
-export const OPPORTUNITIES: CareerOpportunity[] = [
+const DEMO_LISTINGS: Omit<CareerOpportunity, "source">[] = [
   {
     id: "o1", company: "Potomac Civic Labs (fictional)", role: "Software Engineering Intern", type: "Internship",
     field: "Software Engineering", location: "Washington, DC", region: "Washington, DC", remote: "Hybrid",
@@ -245,3 +244,5 @@ export const OPPORTUNITIES: CareerOpportunity[] = [
     description: "Harden CI/CD pipelines and container images.",
   },
 ];
+
+export const OPPORTUNITIES: CareerOpportunity[] = DEMO_LISTINGS.map((o) => ({ ...o, source: { kind: "demo" } }));

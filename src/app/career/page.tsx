@@ -1,11 +1,17 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Bookmark, BookmarkCheck, Briefcase, Calculator, CircleHelp, FileText, MapPin, Plus, ShieldCheck, ShieldQuestion, ShieldX, Sparkles, X } from "lucide-react";
+import { Bookmark, BookmarkCheck, Briefcase, Calculator, CircleHelp, Database, ExternalLink, FileText, MapPin, PanelRightOpen, Plus, RefreshCw, ShieldCheck, ShieldQuestion, ShieldX, Sparkles, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useFeedback } from "@/components/feedback";
 import { Badge, Card, IconBubble, PageHeader, ProgressRing, SourceLabel, type Tone } from "@/components/ui";
-import { DEMO_STUDENT, OPPORTUNITIES, SKILL_LIBRARY } from "@/lib/demo-data";
+import { CareerDetailDrawer } from "@/components/career/CareerDetailDrawer";
+import { filterListings, type SourceFilter } from "@/lib/career-state";
+import { workAuthGuidance } from "@/lib/career-guidance";
+import { OPPORTUNITIES, SKILL_LIBRARY } from "@/lib/demo-data";
+import { useLiveJobs } from "@/lib/jobs/client";
+import { isStale } from "@/lib/jobs/normalize";
+import { deriveStudentProfile } from "@/lib/profile";
 import { MATCH_WEIGHTS, matchOpportunity, resumeTips, skillGaps } from "@/lib/matching";
 import { useCampus } from "@/lib/store";
 import type { ApplicationStatus, CareerField, CareerOpportunity, WorkAuthStatus } from "@/lib/types";
@@ -29,22 +35,31 @@ const fieldTone: Record<CareerField, Tone> = {
 };
 
 export default function CareerNavigator() {
-  const { career, setCareer, saved, toggleSaved, statuses, setStatus, intl, notify } = useCampus();
+  const { career, setCareer, saved, toggleSaved, statuses, setStatus, intl, plan, notify } = useCampus();
   const { toast } = useFeedback();
   const [savedOnly, setSavedOnly] = useState(false);
   const [authFilter, setAuthFilter] = useState<WorkAuthStatus | "all">("all");
   const [newSkill, setNewSkill] = useState("");
   const [explain, setExplain] = useState<string | null>(null);
+  const [source, setSource] = useState<SourceFilter>("all");
+  const [statusFilter, setStatusFilter] = useState<ApplicationStatus | "all">("all");
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const live = useLiveJobs();
 
+  // One shared profile (Graduation Planner + International Advisor + career skills) instead of duplicated fields.
+  const profile = useMemo(() => deriveStudentProfile({ plan, career, intl }), [plan, career, intl]);
+  const all = useMemo(() => [...OPPORTUNITIES, ...live.listings], [live.listings]);
   const scored = useMemo(
-    () => OPPORTUNITIES.map((o) => ({ o, m: matchOpportunity(o, career) })).sort((a, b) => b.m.score - a.m.score),
-    [career],
+    () => all.map((o) => ({ o, m: matchOpportunity(o, career) })).sort((a, b) => b.m.score - a.m.score),
+    [all, career],
   );
-  const shown = scored.filter(({ o }) => (!savedOnly || saved.includes(o.id)) && (authFilter === "all" || o.workAuth === authFilter));
-  const gaps = skillGaps(OPPORTUNITIES, career);
-  const tips = resumeTips(career, OPPORTUNITIES);
-  const avg = Math.round(scored.slice(0, 3).reduce((s, x) => s + x.m.score, 0) / 3);
-  const isF1 = intl.status === "F-1";
+  const shown = filterListings(scored, { savedOnly, saved, authFilter, source, statusFilter, statuses });
+  const gaps = skillGaps(all, career);
+  const tips = resumeTips(career, all);
+  const top3 = scored.filter((x) => !x.m.insufficientData).slice(0, 3);
+  const avg = top3.length ? Math.round(top3.reduce((s, x) => s + x.m.score, 0) / top3.length) : 0;
+  const isF1 = profile.isF1;
+  const detail = scored.find((x) => x.o.id === detailId) ?? null;
 
   const toggleIn = <T,>(list: T[], v: T) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
 
@@ -59,7 +74,7 @@ export default function CareerNavigator() {
   return (
     <div>
       <PageHeader eyebrow="Module 4" title="Career Navigator" icon={Briefcase} tone="blush"
-        subtitle="Personalized matching for DC, Northern Virginia and Maryland. All listings are fictional samples — no live deadlines, and work-authorization status is never assumed." />
+        subtitle="Personalized matching for DC, Northern Virginia and Maryland. Fictional demo listings plus optional real postings from public job boards. Work authorization is never assumed." />
 
       <div className="grid gap-6 xl:grid-cols-[340px_1fr]">
         {/* Profile */}
@@ -70,15 +85,18 @@ export default function CareerNavigator() {
                 <span className="font-display text-xl font-semibold">{avg}%</span>
               </ProgressRing>
               <div>
-                <p className="font-semibold">{DEMO_STUDENT.name}</p>
-                <p className="text-xs text-muted">{DEMO_STUDENT.major}</p>
-                <p className="text-xs text-muted">Graduating {DEMO_STUDENT.expectedGraduation}</p>
+                <p className="font-semibold">{profile.name}</p>
+                <p className="text-xs text-muted">{profile.major}</p>
+                <p className="text-xs text-muted">Projected graduation {profile.projectedGraduation}</p>
                 <p className="mt-1 text-[11px] text-muted">Avg. of top 3 matches</p>
               </div>
             </div>
             <div className="mt-4 space-y-1.5 text-xs">
-              <p className="flex justify-between gap-3"><span className="text-muted">Availability</span><span className="text-right font-semibold">{career.internshipAvailability}</span></p>
-              <p className="flex justify-between gap-3"><span className="text-muted">Work authorization</span><span className="text-right font-semibold">{isF1 ? "F-1 · CPT/OPT needs DSO/USCIS authorization" : intl.status}</span></p>
+              <p className="flex justify-between gap-3"><span className="text-muted">Next internship window</span><span className="text-right font-semibold">{profile.nextInternshipWindow ? `${profile.nextInternshipWindow.label} · ${profile.nextInternshipWindow.level}` : "No summer term before graduation"}</span></p>
+              {profile.nextInternshipWindow && <p className="text-right text-[11px] text-muted">{profile.nextInternshipWindow.note}</p>}
+              <p className="flex justify-between gap-3"><span className="text-muted">Work authorization</span><span className="text-right font-semibold">{profile.workAuthSummary}</span></p>
+              {!profile.graduationOnTrack && <p className="rounded-xl bg-butter/70 px-2 py-1 text-[11px]">Graduation plan needs attention. Availability may change after you fix it in Graduation Planner.</p>}
+              <p className="text-[10px] text-muted">Synced from Graduation Planner and International Advisor.</p>
             </div>
           </Card>
 
@@ -129,13 +147,31 @@ export default function CareerNavigator() {
         {/* Opportunities */}
         <div>
           <div className="mb-4 flex flex-wrap items-center gap-2">
-            <button onClick={() => setSavedOnly(false)} className={`rounded-full px-4 py-1.5 text-sm font-semibold ${!savedOnly ? "bg-ink text-white" : "border border-line bg-paper text-muted"}`}>All ({OPPORTUNITIES.length})</button>
+            <button onClick={() => setSavedOnly(false)} className={`rounded-full px-4 py-1.5 text-sm font-semibold ${!savedOnly ? "bg-ink text-white" : "border border-line bg-paper text-muted"}`}>All ({all.length})</button>
             <button onClick={() => setSavedOnly(true)} className={`rounded-full px-4 py-1.5 text-sm font-semibold ${savedOnly ? "bg-ink text-white" : "border border-line bg-paper text-muted"}`}>Saved ({saved.length})</button>
             <select value={authFilter} onChange={(e) => setAuthFilter(e.target.value as WorkAuthStatus | "all")} className="rounded-full border border-line bg-paper px-3 py-1.5 text-sm" aria-label="Filter by work authorization">
               <option value="all">Any work-authorization status</option>
               {(Object.keys(authMeta) as WorkAuthStatus[]).map((k) => <option key={k} value={k}>{authMeta[k].label}</option>)}
             </select>
-            <span className="ml-auto"><SourceLabel kind="demo" /></span>
+            <select value={source} onChange={(e) => setSource(e.target.value as SourceFilter)} className="rounded-full border border-line bg-paper px-3 py-1.5 text-sm" aria-label="Filter by data source">
+              <option value="all">Demo + live</option><option value="demo">Demo only</option><option value="live">Live only</option>
+            </select>
+            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as ApplicationStatus | "all")} className="rounded-full border border-line bg-paper px-3 py-1.5 text-sm" aria-label="Filter by application status">
+              <option value="all">Any status</option>
+              {STATUSES.map((s) => <option key={s.v} value={s.v}>{s.label}</option>)}
+            </select>
+          </div>
+
+          <div className="mb-4 flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-paper/80 px-4 py-2.5 text-xs">
+            <Database size={14} className="text-powder-deep" />
+            <span className="font-semibold">Job data:</span>
+            <span>{OPPORTUNITIES.length} fictional demo listings</span>
+            <span className="text-muted">·</span>
+            {live.status === "loading" ? <span className="text-muted">checking live sources…</span>
+              : !live.configured ? <span className="text-muted">Live job boards not configured (see README)</span>
+              : <span>{live.listings.length} live DC/VA/MD student roles from {live.providers.filter((p) => p.ok).length}/{live.providers.length} boards{live.fetchedAt ? `, fetched ${new Date(live.fetchedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}` : ""}</span>}
+            {live.providers.some((p) => !p.ok) && <span className="text-blush-deep">({live.providers.filter((p) => !p.ok).map((p) => p.id).join(", ")} unavailable)</span>}
+            {live.configured && <button onClick={live.refresh} className="ml-auto inline-flex items-center gap-1 font-semibold text-powder-deep hover:underline"><RefreshCw size={12} /> Refresh</button>}
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
@@ -144,6 +180,7 @@ export default function CareerNavigator() {
                 const a = authMeta[o.workAuth];
                 const isSaved = saved.includes(o.id);
                 const st = statuses[o.id] ?? "not-started";
+                const g = workAuthGuidance(o, profile);
                 return (
                   <motion.div layout key={o.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} className="card flex flex-col p-5">
                     <div className="flex items-start justify-between gap-3">
@@ -152,10 +189,18 @@ export default function CareerNavigator() {
                         <h3 className="font-display mt-2 text-xl font-semibold leading-snug">{o.role}</h3>
                         <p className="text-sm text-muted">{o.company}</p>
                         <p className="mt-1 flex items-center gap-1 text-xs text-muted"><MapPin size={12} /> {o.location} · {o.remote}</p>
+                        <p className="mt-1 text-[11px] text-muted">
+                          {o.source.kind === "demo" ? "Fictional demo listing · no application link" : (
+                            <>
+                              {o.source.postedAt ? `${o.source.postedAtLabel} ${new Date(o.source.postedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : "Date not provided"} · {o.source.providerLabel}{isStale(o.source.postedAt) ? " · may be stale" : ""}{" "}
+                              <a href={o.source.applyUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 font-semibold text-powder-deep underline">Apply <ExternalLink size={10} /></a>
+                            </>
+                          )}
+                        </p>
                       </div>
                       <button onClick={() => setExplain(explain === o.id ? null : o.id)} className="shrink-0 text-center" aria-label={`Explain ${m.score}% match`}>
                         <ProgressRing pct={m.score} size={64} stroke={7} color={m.score >= 70 ? "var(--color-sage-deep)" : m.score >= 45 ? "var(--color-butter-deep)" : "var(--color-blush-deep)"} track="var(--color-line)">
-                          <span className="text-sm font-bold">{m.score}%</span>
+                          <span className="text-sm font-bold">{m.insufficientData ? "—" : `${m.score}%`}</span>
                         </ProgressRing>
                         <span className="text-[10px] font-semibold text-muted underline">why?</span>
                       </button>
@@ -181,8 +226,11 @@ export default function CareerNavigator() {
                     <div className={`mt-3 rounded-2xl p-3 text-xs ${authBg[o.workAuth]}`}>
                       <p className="flex items-center gap-1.5 font-semibold"><a.icon size={14} /> Work authorization: {a.label}</p>
                       <p className="mt-0.5 text-ink/70">{o.workAuthNote}</p>
-                      {isF1 && o.workAuth !== "restricted" && o.type !== "Full-time (new grad)" && <p className="mt-1 text-ink/70">F-1: CPT must be authorized by your DSO before starting.</p>}
+                      {isF1 && g.pathway !== "none" && <p className="mt-1 text-ink/70"><b>{g.headline}.</b>{g.employerQuestion ? " The listing doesn't say whether the employer accepts this." : ""}</p>}
                     </div>
+                    <button onClick={() => setDetailId(o.id)} className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-full bg-lavender px-3 py-1.5 text-xs font-semibold text-lavender-deep transition hover:bg-lavender-mid">
+                      <PanelRightOpen size={13} /> Fit analysis, CPT/OPT & tasks
+                    </button>
                     <div className="mt-auto flex items-center gap-2 pt-4">
                       <select value={st} onChange={(e) => { setStatus(o.id, e.target.value as ApplicationStatus); if (e.target.value === "applied") notify(`Applied: ${o.role}`, `${o.company}. ${isF1 ? "Remember: plan CPT with your DSO early." : ""}`, "career"); }}
                         className="flex-1 rounded-full border border-line bg-white px-3 py-1.5 text-xs font-semibold" aria-label={`Application status for ${o.role}`}>
@@ -228,6 +276,9 @@ export default function CareerNavigator() {
           </Card>
         </div>
       </div>
+      <AnimatePresence>
+        {detail && <CareerDetailDrawer key={detail.o.id} o={detail.o} m={detail.m} profile={profile} onClose={() => setDetailId(null)} />}
+      </AnimatePresence>
     </div>
   );
 }

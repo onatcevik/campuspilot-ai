@@ -12,6 +12,8 @@ export interface MatchResult {
   missingPreferred: string[];
   interestMatch: boolean;
   locationMatch: boolean;
+  /** true when the listing has no skills at all, so a skill score would be meaningless. */
+  insufficientData: boolean;
 }
 
 /** Deterministic, explainable score: weighted coverage of required + preferred skills, plus field and region fit. */
@@ -23,13 +25,18 @@ export function matchOpportunity(o: CareerOpportunity, p: CareerProfile): MatchR
   const interestMatch = p.interests.includes(o.field);
   const locationMatch = p.preferredRegions.includes(o.region) || o.remote === "Remote";
   const ratio = (a: number, b: number) => (b ? a / b : 1);
-  const score = Math.round(
-    MATCH_WEIGHTS.required * ratio(matchedRequired.length, o.requiredSkills.length) +
-      MATCH_WEIGHTS.preferred * ratio(matchedPreferred.length, o.preferredSkills.length) +
+  const requiredCoverage = ratio(matchedRequired.length, o.requiredSkills.length);
+  // Listings without a separate "preferred" list (e.g. skills extracted from live postings) reuse required coverage,
+  // so missing data never inflates a score. Curated demo listings always have both lists, so their scores are unchanged.
+  const preferredCoverage = o.preferredSkills.length ? matchedPreferred.length / o.preferredSkills.length : requiredCoverage;
+  const insufficientData = o.requiredSkills.length + o.preferredSkills.length === 0;
+  const score = insufficientData ? 0 : Math.round(
+    MATCH_WEIGHTS.required * requiredCoverage +
+      MATCH_WEIGHTS.preferred * preferredCoverage +
       (interestMatch ? MATCH_WEIGHTS.interest : 0) +
       (locationMatch ? MATCH_WEIGHTS.location : 0),
   );
-  return { score, matchedRequired, missingRequired, matchedPreferred, missingPreferred, interestMatch, locationMatch };
+  return { score, matchedRequired, missingRequired, matchedPreferred, missingPreferred, interestMatch, locationMatch, insufficientData };
 }
 
 /** Skills that appear most often as gaps across the student's best-fit opportunities. */

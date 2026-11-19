@@ -7,6 +7,7 @@ import {
   INITIAL_PLAN,
   seedAssignments,
 } from "./demo-data";
+import { setApplicationStatus, toggleSavedList } from "./career-state";
 import type { PlanMap } from "./graduation";
 import type {
   AppNotification,
@@ -133,9 +134,8 @@ export function CampusProvider({ children }: { children: React.ReactNode }) {
       setCourseTerm: (courseId, termId) => patch((s) => ({ plan: { ...s.plan, [courseId]: termId } })),
       applyPlan: (plan) => patch(() => ({ plan: { ...plan } })),
       setCareer: (p) => patch((s) => ({ career: { ...s.career, ...p } })),
-      toggleSaved: (id) =>
-        patch((s) => ({ saved: s.saved.includes(id) ? s.saved.filter((x) => x !== id) : [...s.saved, id] })),
-      setStatus: (id, st) => patch((s) => ({ statuses: { ...s.statuses, [id]: st } })),
+      toggleSaved: (id) => patch((s) => ({ saved: toggleSavedList(s.saved, id) })),
+      setStatus: (id, st) => patch((s) => ({ statuses: setApplicationStatus(s.statuses, id, st) })),
       setIntl: (p) => patch((s) => ({ intl: { ...s.intl, ...p } })),
       toggleChecklist: (id) =>
         patch((s) => ({ intl: { ...s.intl, checklist: { ...s.intl.checklist, [id]: !s.intl.checklist[id] } } })),

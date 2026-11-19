@@ -5,6 +5,7 @@ import { courseById, degreeTotals, termToGraduationDate, validatePlan } from "./
 import { buildMilestones, fmtDate, sourceById } from "./immigration";
 import { matchOpportunity, resumeTips } from "./matching";
 import { buildRecommendations } from "./recommendations";
+import { deriveStudentProfile } from "./profile";
 import { retrieve } from "./retrieval";
 import type { CampusState } from "./store";
 
@@ -92,6 +93,7 @@ export function assistantContext(s: CampusState, now: Date) {
     international: { status: s.intl.status, programEndDate: s.intl.programEndDate, milestones: buildMilestones(s.intl).map((m) => ({ title: m.title, date: m.date, kind: m.kind })) },
     career: {
       skills: s.career.skills,
+      academicAvailability: deriveStudentProfile(s).availability.map((a) => `${a.label}: ${a.level} (${a.credits} cr)`),
       topMatches: OPPORTUNITIES.map((o) => ({ role: o.role, company: o.company, score: matchOpportunity(o, s.career).score, workAuth: o.workAuth })).sort((a, b) => b.score - a.score).slice(0, 4),
     },
     alerts: buildRecommendations(s, now).map((r) => r.title),
