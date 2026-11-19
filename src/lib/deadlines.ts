@@ -84,27 +84,60 @@ export function weekLabel(weekStart: Date): string {
   return `${f(dayAt(weekStart, 0))} – ${f(dayAt(weekStart, 6))}`;
 }
 
+/** Unfinished first, completed last; each group by due date, ties broken by id. Stable and predictable. */
+export function sortForBoard(list: Assignment[]): Assignment[] {
+  return [...list].sort(
+    (a, b) => Number(a.completed) - Number(b.completed) || a.dueDate.localeCompare(b.dueDate) || a.id.localeCompare(b.id),
+  );
+}
+
+const isClosedOpen = (a: Assignment) => !a.completed && a.submission === "closed";
+
 /**
- * Assignments for the week starting at `weekStart`, grouped by due day (Mon..Sun).
- * For the CURRENT week, still-open items that were due before Monday are returned in `carriedOver`
- * (they count toward this week's progress, matching weeklyAssignments()).
+ * Week view model for the week starting at `weekStart`. Order on screen:
+ *   needsAttention (top) → carriedOver → days Mon..Sun (UNFINISHED only) → completed (bottom, whole week).
+ * - Completed assignments are pulled out of the day grouping entirely and listed once in `completed`,
+ *   sorted by their original due date (the card still shows that date).
+ * - Items the student reported as "submission closed" (and not completed) appear ONLY in `needsAttention`.
+ * - Every assignment appears in at most one list. Totals/progress are unchanged by this layout.
  */
 export function groupWeek(list: Assignment[], weekStart: Date, now: Date) {
   const start = dayAt(weekStart, 0).getTime();
+  const end = dayAt(weekStart, 7).getTime();
   const isCurrent = startOfWeek(now).getTime() === start;
+  const due = (a: Assignment) => new Date(a.dueDate).getTime();
+  const inWeek = (a: Assignment) => due(a) >= start && due(a) < end;
+  const carried = (a: Assignment) => isCurrent && !a.completed && due(a) < start;
+  const openNormal = (a: Assignment) => !a.completed && !isClosedOpen(a);
   const days = Array.from({ length: 7 }, (_, i) => {
     const from = dayAt(weekStart, i).getTime();
     const to = dayAt(weekStart, i + 1).getTime();
-    const items = list
-      .filter((a) => { const t = new Date(a.dueDate).getTime(); return t >= from && t < to; })
-      .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+    const all = list.filter((a) => due(a) >= from && due(a) < to);
+    const items = sortForBoard(all.filter(openNormal));
     const date = new Date(from);
-    return { date, items, isToday: date.toDateString() === now.toDateString() };
+    return { date, items, completedCount: all.filter((a) => a.completed).length, isToday: date.toDateString() === now.toDateString() };
   });
-  const carriedOver = isCurrent
-    ? list.filter((a) => !a.completed && new Date(a.dueDate).getTime() < start).sort((a, b) => a.dueDate.localeCompare(b.dueDate))
-    : [];
-  const all = [...carriedOver, ...days.flatMap((d) => d.items)];
-  const done = all.filter((a) => a.completed).length;
-  return { days, carriedOver, isCurrent, total: all.length, done, pct: all.length ? Math.round((done / all.length) * 100) : 0 };
+  const carriedOver = sortForBoard(list.filter((a) => carried(a) && !isClosedOpen(a)));
+  const needsAttention = sortForBoard(list.filter((a) => isClosedOpen(a)));
+  const completed = sortForBoard(list.filter((a) => a.completed && inWeek(a)));
+  const counted = list.filter((a) => inWeek(a) || carried(a));
+  const done = counted.filter((a) => a.completed).length;
+  return { days, carriedOver, needsAttention, completed, isCurrent, total: counted.length, done, pct: counted.length ? Math.round((done / counted.length) * 100) : 0 };
 }
+
+/** All Tasks view model: needs attention, then every unfinished task (by due date), then every completed task. */
+export function splitAllTasks(list: Assignment[]) {
+  return {
+    needsAttention: sortForBoard(list.filter(isClosedOpen)),
+    open: sortForBoard(list.filter((a) => !a.completed && !isClosedOpen(a))),
+    completed: sortForBoard(list.filter((a) => a.completed)),
+  };
+}
+
+type WeekModel = ReturnType<typeof groupWeek>;
+
+/** Only weekdays that still have unfinished work are shown — no empty day headings or placeholder rows. */
+export const visibleDays = (w: WeekModel) => w.days.map((d, index) => ({ ...d, index })).filter((d) => d.items.length > 0);
+
+/** True when the week has any unfinished work to show above the Completed section (excluding Needs Attention). */
+export const hasOpenWork = (w: WeekModel) => w.carriedOver.length > 0 || w.days.some((d) => d.items.length > 0);

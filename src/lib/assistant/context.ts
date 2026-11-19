@@ -162,7 +162,9 @@ export function buildAssistantContext(question: string, s: CampusState, now: Dat
     add("study", `This week: ${wp.done} of ${wp.total} assignments completed.`);
     open.slice(0, 6).forEach((a) => {
       const st = deadlineState(a, now);
-      const tag = st === "overdue" ? "OVERDUE" : st === "due-2h" ? "due in under 2 hours" : st === "due-24h" ? "due within 24 hours" : "upcoming";
+      const tag = a.submission === "closed" ? "SUBMISSION CLOSED (student-reported, not completed)"
+        : st === "overdue" ? (a.submission === "late-allowed" ? "OVERDUE, late submission allowed (student-reported)" : "OVERDUE, submission availability unknown")
+        : st === "due-2h" ? "due in under 2 hours" : st === "due-24h" ? "due within 24 hours" : "upcoming";
       add("study", `Assignment "${a.title}" (${a.course}): ${tag}, due ${formatDue(a.dueDate)} (${remainingLabel(a, now)}), estimated ${a.estimatedHours}h.`);
     });
     workload.days.slice(0, 2).forEach((d) => {

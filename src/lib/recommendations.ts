@@ -17,11 +17,20 @@ export function buildRecommendations(s: CampusState, now: Date): Recommendation[
   const overdue = open.filter((a) => deadlineState(a, now) === "overdue");
   const urgent = open.filter((a) => deadlineState(a, now) === "due-2h");
   const soon = open.filter((a) => deadlineState(a, now) === "due-24h");
-  overdue.forEach((a) =>
-    recs.push({ id: `ov-${a.id}`, module: "study", severity: "critical", title: `Overdue: ${a.title}`,
-      detail: `${a.course} — ${remainingLabel(a, now)}. Submit it or email your instructor today.`,
-      action: { label: "Open Study Board", href: "/study-board" } }),
-  );
+  overdue.forEach((a) => {
+    if (a.submission === "closed")
+      recs.push({ id: `closed-${a.id}`, module: "study", severity: "critical", title: `Needs attention: submission closed for ${a.title}`,
+        detail: `${a.course}. You reported that submission is closed. Consider emailing your professor about an extension.`,
+        action: { label: "Open Study Board", href: "/study-board" } });
+    else if (a.submission === "late-allowed")
+      recs.push({ id: `late-${a.id}`, module: "study", severity: "warning", title: `Late submission allowed: ${a.title}`,
+        detail: `${a.course}. ${remainingLabel(a, now)}. You reported late work is accepted, so submit it soon.`,
+        action: { label: "Open Study Board", href: "/study-board" } });
+    else
+      recs.push({ id: `ov-${a.id}`, module: "study", severity: "critical", title: `Overdue: ${a.title}`,
+        detail: `${a.course}. ${remainingLabel(a, now)}. Check whether late submission is allowed, then update its status on the Study Board.`,
+        action: { label: "Open Study Board", href: "/study-board" } });
+  });
   urgent.forEach((a) =>
     recs.push({ id: `u-${a.id}`, module: "study", severity: "critical", title: `Due in under 2 hours: ${a.title}`,
       detail: `${a.course} — ${remainingLabel(a, now)}. Block focus time right now.`,

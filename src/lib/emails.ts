@@ -1,7 +1,7 @@
 import { DEMO_STUDENT } from "./demo-data";
 import { courseById, termById, termToGraduationDate, type PlanValidation } from "./graduation";
 import { fmtDate } from "./immigration";
-import type { IntlProfile } from "./types";
+import type { Assignment, IntlProfile } from "./types";
 
 export function advisorEmail(v: PlanValidation): { subject: string; body: string } {
   const issues = v.prereqIssues.map((i) => `• ${i.message}`);
@@ -46,6 +46,26 @@ ${p.stemInterest ? "• Is my degree program's CIP code on the DHS STEM Designat
 I understand that work authorization must be confirmed through the official process before I begin any employment. Could I schedule a short appointment to discuss this?
 
 Thank you for your help.
+
+Best regards,
+${DEMO_STUDENT.name}`,
+  };
+}
+
+/** Editable extension-request draft. Never sent automatically; placeholders are left for the student to fill in. */
+export function extensionRequestEmail(a: Assignment): { subject: string; body: string } {
+  const due = new Date(a.dueDate).toLocaleString("en-US", { weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" });
+  return {
+    subject: `Extension request: ${a.title} (${a.course})`,
+    body: `Dear Professor [Name],
+
+I hope you are well. I'm writing about "${a.title}" for ${a.course}, which was due ${due}. I missed the deadline and the submission appears to be closed on my end.
+
+[Briefly explain what happened. Be honest and specific.]
+
+Would it be possible to submit it late, or is there another way I can make up this work? I can have it ready by [proposed date].
+
+Thank you for considering my request, and I apologize for the inconvenience.
 
 Best regards,
 ${DEMO_STUDENT.name}`,

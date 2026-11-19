@@ -9,7 +9,7 @@ const prio = { high: 0, medium: 1, low: 2 } as const;
 /** Earliest-deadline-first scheduler with a daily focus-hour budget. Deterministic. */
 export function buildWorkloadPlan(list: Assignment[], now: Date, dailyHours = 3, days = 5): { days: DayPlan[]; warnings: string[] } {
   const open = list
-    .filter((a) => !a.completed)
+    .filter((a) => !a.completed && a.submission !== "closed")
     .sort((a, b) => {
       const ao = deadlineState(a, now) === "overdue" ? 0 : 1;
       const bo = deadlineState(b, now) === "overdue" ? 0 : 1;

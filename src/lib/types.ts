@@ -62,6 +62,12 @@ export interface Assignment {
   color: NoteColor;
   estimatedHours: number;
   notes?: string;
+  /**
+   * Student-reported submission availability after the deadline. CampusPilot is NOT connected to LearningBAU,
+   * so this is never inferred from the due date: undefined = unknown.
+   */
+  submission?: "late-allowed" | "closed";
+  submissionUpdatedAt?: string;
   /** Set when a task was created from another module (e.g. Career Navigator) after user confirmation. */
   origin?: { module: "career"; opportunityId: string } | { module: "assistant"; actionId: string };
 }

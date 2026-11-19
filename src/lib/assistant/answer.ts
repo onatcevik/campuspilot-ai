@@ -105,7 +105,7 @@ function thisWeek(ctx: AssistantContext, now: Date): Section {
     s.text.push(urgent.length ? `Start with the ${urgent.length} urgent item(s):` : "Nothing is urgent. Here's what's next:");
     (urgent.length ? urgent : d.open.slice(0, 3)).forEach((a) => {
       const st = deadlineState(a, now);
-      s.text.push(`- ${a.title} (${a.course}): ${st === "overdue" ? "overdue" : st === "due-2h" ? "due in under 2 hours" : st === "due-24h" ? "due within 24 hours" : "upcoming"}.`);
+      s.text.push(`- ${a.title} (${a.course}): ${a.submission === "closed" ? "submission closed (you reported). Consider emailing your professor" : st === "overdue" ? (a.submission === "late-allowed" ? "overdue, late submission allowed (you reported)" : "overdue. Check whether late submission is allowed") : st === "due-2h" ? "due in under 2 hours" : st === "due-24h" ? "due within 24 hours" : "upcoming"}.`);
     });
   }
   const today = d.workload.days[0];

@@ -1,15 +1,17 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { AlarmClock, Bot, Brain, CalendarDays, Check, ChevronLeft, ChevronRight, Clock, Flame, LayoutGrid, NotebookPen, Pencil, Plus, Trash2, Wand2, X } from "lucide-react";
+import { AlarmClock, Bot, Brain, CalendarDays, Check, CheckCircle2, ChevronLeft, ChevronRight, Clock, Flame, Hourglass, Info, LayoutGrid, Lock, Mail, NotebookPen, Pencil, Plus, Trash2, Wand2, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useFeedback } from "@/components/feedback";
 import { Badge, Button, Card, inputCls, PageHeader, ProgressBar, SourceLabel } from "@/components/ui";
 import { askAI, useAiStatus } from "@/lib/ai-client";
 import {
-  addWeeks, deadlineState, formatDue, groupWeek, remainingLabel, startOfWeek, toLocalInputValue, weekLabel, weeklyAssignments, type DeadlineState,
+  addWeeks, deadlineState, formatDue, groupWeek, hasOpenWork, splitAllTasks, visibleDays, remainingLabel, startOfWeek, toLocalInputValue, weekLabel, weeklyAssignments, type DeadlineState,
 } from "@/lib/deadlines";
 import { useAskAssistant } from "@/lib/assistant/useAskAssistant";
+import { extensionRequestEmail } from "@/lib/emails";
+import { boardStatus, NOT_VERIFIED_NOTE, SUBMISSION_LABEL, type SubmissionStatus } from "@/lib/submission";
 import { useCampus, useNow } from "@/lib/store";
 import type { Assignment, NoteColor, Priority } from "@/lib/types";
 import { buildWorkloadPlan } from "@/lib/workload";
@@ -33,13 +35,16 @@ const tilts = ["-rotate-1", "rotate-1", "-rotate-[0.6deg]", "rotate-[0.8deg]", "
 type Filter = "all" | "active" | "completed";
 type FormState = { id?: string; course: string; title: string; due: string; priority: Priority; color: NoteColor; estimatedHours: number; notes: string };
 
-function StickyNote({ a, i, now, onToggle, onEdit, onDelete }: {
+function StickyNote({ a, i, now, onToggle, onEdit, onDelete, onSubmission, onEmail }: {
   a: Assignment; i: number; now: Date; onToggle: () => void; onEdit: () => void; onDelete: () => void;
+  onSubmission: (s: SubmissionStatus) => void; onEmail: () => void;
 }) {
   const st = deadlineState(a, now);
+  const bs = boardStatus(a, now);
   const badge = stateBadge[st];
   const done = a.completed;
-  const urgent = st === "due-2h" || st === "overdue";
+  const closed = bs === "closed";
+  const urgent = st === "due-2h" || bs === "overdue";
   return (
     <motion.div
       layout
@@ -48,7 +53,7 @@ function StickyNote({ a, i, now, onToggle, onEdit, onDelete }: {
       exit={{ opacity: 0, scale: 0.85 }}
       whileHover={{ y: -4, rotate: 0 }}
       transition={{ type: "spring", stiffness: 300, damping: 24 }}
-      className={`group relative flex min-h-[230px] flex-col rounded-[1.25rem] p-5 shadow-note transition-colors duration-500 ${done ? "bg-[#e7e5e4] text-ink/55" : `${noteBg[a.color]} note-paper`} ${tilts[i % tilts.length]} ${urgent && !done ? "ring-2 ring-blush-deep/50" : ""}`}
+      className={`group relative flex min-h-[230px] flex-col rounded-[1.25rem] p-5 shadow-note transition-colors duration-500 ${done ? "bg-[#e7e5e4] text-ink/55" : closed ? "bg-blush/70 note-paper" : `${noteBg[a.color]} note-paper`} ${tilts[i % tilts.length]} ${(urgent || closed) && !done ? "ring-2 ring-blush-deep/50" : ""}`}
     >
       {/* tape */}
       <span className={`absolute -top-2.5 left-1/2 h-5 w-16 -translate-x-1/2 rotate-[-3deg] rounded-sm ${done ? "bg-white/60" : "bg-white/70"} shadow-sm`} />
@@ -72,14 +77,38 @@ function StickyNote({ a, i, now, onToggle, onEdit, onDelete }: {
         <div className="flex flex-wrap items-center gap-1.5">
           {done ? (
             <Badge tone="sage">Completed</Badge>
+          ) : closed ? (
+            <Badge tone="blush"><Lock size={11} /> {SUBMISSION_LABEL.closed}</Badge>
           ) : (
             <>
               <Badge tone={prioTone[a.priority]}>{a.priority} priority</Badge>
-              {badge && <Badge tone={badge.tone}><AlarmClock size={11} /> {badge.label}</Badge>}
+              {bs === "late-allowed" ? <Badge tone="butter"><Hourglass size={11} /> {SUBMISSION_LABEL["late-allowed"]}</Badge>
+                : badge && <Badge tone={badge.tone}><AlarmClock size={11} /> {badge.label}</Badge>}
               <span className="text-[11px] font-semibold opacity-75">{remainingLabel(a, now)}</span>
             </>
           )}
         </div>
+        {/* Overdue: availability unknown → ask the student, never assume */}
+        {bs === "overdue" && (
+          <div className="pr-12" role="group" aria-label={`Submission status for ${a.title}`}>
+            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider opacity-70">Deadline passed. Can you still submit?</p>
+            <div className="flex flex-wrap gap-1">
+              <button onClick={onToggle} className="rounded-full bg-white/85 px-2 py-0.5 text-[10px] font-semibold text-sage-deep hover:bg-white">I submitted it</button>
+              <button onClick={() => onSubmission("late-allowed")} className="rounded-full bg-white/85 px-2 py-0.5 text-[10px] font-semibold text-butter-deep hover:bg-white">Late submission is allowed</button>
+              <button onClick={() => onSubmission("closed")} className="rounded-full bg-white/85 px-2 py-0.5 text-[10px] font-semibold text-blush-deep hover:bg-white">Submission is closed</button>
+            </div>
+          </div>
+        )}
+        {bs === "late-allowed" && (
+          <button onClick={() => onSubmission("unknown")} className="text-[10px] font-semibold underline opacity-75 hover:opacity-100">Change submission status</button>
+        )}
+        {closed && (
+          <div className="flex flex-wrap gap-1 pr-12">
+            <button onClick={onEmail} className="inline-flex items-center gap-1 rounded-full bg-ink px-2.5 py-1 text-[10px] font-semibold text-white hover:bg-ink/85"><Mail size={11} /> Email professor</button>
+            <button onClick={() => onSubmission("late-allowed")} className="rounded-full bg-white/85 px-2 py-0.5 text-[10px] font-semibold text-butter-deep hover:bg-white">Late is allowed</button>
+            <button onClick={() => onSubmission("unknown")} className="rounded-full bg-white/85 px-2 py-0.5 text-[10px] font-semibold hover:bg-white">Not closed (undo)</button>
+          </div>
+        )}
       </div>
       <button
         onClick={onToggle}
@@ -96,8 +125,8 @@ function StickyNote({ a, i, now, onToggle, onEdit, onDelete }: {
 }
 
 export default function StudyBoard() {
-  const { assignments, addAssignment, updateAssignment, deleteAssignment, toggleComplete, notify } = useCampus();
-  const { celebrate, toast } = useFeedback();
+  const { assignments, addAssignment, updateAssignment, deleteAssignment, toggleComplete, setSubmission, notify } = useCampus();
+  const { celebrate, toast, openDraft } = useFeedback();
   const now = useNow(15_000);
   const ai = useAiStatus();
   const [filter, setFilter] = useState<Filter>("all");
@@ -113,22 +142,38 @@ export default function StudyBoard() {
   const week = groupWeek(assignments, shownWeekStart, now);
   const passes = (a: Assignment) => (filter === "all" ? true : filter === "active" ? !a.completed : a.completed);
 
-  const visible = useMemo(
-    () => assignments.filter(passes).sort((a, b) => Number(a.completed) - Number(b.completed) || a.dueDate.localeCompare(b.dueDate)),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [assignments, filter],
-  );
+  const allTasks = useMemo(() => splitAllTasks(assignments), [assignments]);
+  const attention = week.needsAttention.filter(passes);
+  const showOpen = filter !== "completed";
+  const showDone = filter !== "active";
+  function changeSubmission(a: Assignment, status: SubmissionStatus) {
+    setSubmission(a.id, status);
+    if (status === "closed") toast("Moved to Needs attention", `${a.title}: you reported submission is closed. It is not marked completed.`, "warning");
+    else if (status === "late-allowed") toast("Marked: late submission allowed", `${a.title} stays on your board until you complete it.`, "info");
+    else toast("Submission status cleared", `${a.title} is back to "overdue, availability unknown".`, "info");
+  }
+  const emailProfessor = (a: Assignment) => openDraft({ title: "Extension request (draft)", ...extensionRequestEmail(a), source: "rule" });
   const editNote = (a: Assignment) => setForm({ id: a.id, course: a.course, title: a.title, due: toLocalInputValue(a.dueDate), priority: a.priority, color: a.color, estimatedHours: a.estimatedHours, notes: a.notes ?? "" });
   const removeNote = (a: Assignment) => { deleteAssignment(a.id); toast("Assignment deleted", a.title, "info"); };
   const renderNotes = (items: Assignment[]) => (
     <div className="grid gap-5 pt-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
       <AnimatePresence mode="popLayout">
         {items.map((a, i) => (
-          <StickyNote key={a.id} a={a} i={i} now={now} onToggle={() => handleToggle(a)} onEdit={() => editNote(a)} onDelete={() => removeNote(a)} />
+          <StickyNote key={a.id} a={a} i={i} now={now} onToggle={() => handleToggle(a)} onEdit={() => editNote(a)} onDelete={() => removeNote(a)} onSubmission={(st) => changeSubmission(a, st)} onEmail={() => emailProfessor(a)} />
         ))}
       </AnimatePresence>
     </div>
   );
+  const completedSection = (items: Assignment[], scope: string) =>
+    items.length > 0 && (
+      <section aria-label="Completed assignments" className="rounded-3xl border border-line bg-white/50 p-4">
+        <div className="mb-2 flex flex-wrap items-center gap-2 border-b border-line/80 pb-1.5">
+          <h2 className="flex items-center gap-2 font-display text-lg font-semibold"><CheckCircle2 size={17} className="text-sage-deep" /> Completed Assignments</h2>
+          <span className="text-xs text-muted">{items.length} {scope} · each card keeps its original due date · uncheck to move it back</span>
+        </div>
+        {renderNotes(items)}
+      </section>
+    );
 
   const workload = useMemo(() => buildWorkloadPlan(assignments, now), [assignments, now]);
 
@@ -216,14 +261,14 @@ export default function StudyBoard() {
           </div>
           <div className="scrollbar-thin flex gap-2 overflow-x-auto pb-1" role="list" aria-label="Days of the week">
             {week.days.map((d, i) => {
-              const allDone = d.items.length > 0 && d.items.every((a) => a.completed);
               return (
-                <a key={i} href={`#day-${i}`} role="listitem" onClick={() => setView("week")}
-                  className={`flex min-w-[64px] flex-1 flex-col items-center rounded-2xl border px-2 py-2.5 transition ${d.isToday ? "border-lavender-deep/40 bg-lavender" : "border-line bg-white/70 hover:bg-white"}`}>
+                <a key={i} href={d.items.length ? `#day-${i}` : undefined} role="listitem" onClick={() => d.items.length && setView("week")}
+                  className={`flex min-w-[64px] flex-1 flex-col items-center rounded-2xl border px-2 py-2.5 transition ${d.isToday ? "border-lavender-deep/40 bg-lavender" : "border-line bg-white/70"} ${d.items.length ? "cursor-pointer hover:bg-white" : "cursor-default"}`}>
                   <span className="text-[11px] font-semibold uppercase opacity-70">{d.date.toLocaleDateString("en-US", { weekday: "short" })}</span>
                   <span className="font-display text-xl font-semibold">{d.date.getDate()}</span>
                   <span className="mt-1 flex h-1.5 gap-0.5">
-                    {d.items.map((a) => <span key={a.id} className={`h-1.5 w-1.5 rounded-full ${a.completed || allDone ? "bg-sage-deep" : deadlineState(a, now) === "overdue" ? "bg-blush-deep" : "bg-butter-deep"}`} />)}
+                    {d.items.map((a) => <span key={a.id} className={`h-1.5 w-1.5 rounded-full ${deadlineState(a, now) === "overdue" ? "bg-blush-deep" : "bg-butter-deep"}`} />)}
+                    {Array.from({ length: d.completedCount }, (_, k) => <span key={`c${k}`} className="h-1.5 w-1.5 rounded-full bg-sage-deep" />)}
                   </span>
                 </a>
               );
@@ -295,45 +340,67 @@ export default function StudyBoard() {
         <span className="ml-auto"><SourceLabel kind="demo" /></span>
       </div>
 
+      {attention.length > 0 && (
+        <section aria-label="Needs attention" className="mb-6 rounded-3xl border-2 border-blush-mid bg-blush/25 p-4">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <h2 className="flex items-center gap-2 font-display text-lg font-semibold text-blush-deep"><Lock size={16} /> Needs attention</h2>
+            <span className="text-xs text-muted">{attention.length} assignment{attention.length > 1 ? "s" : ""} you marked as submission closed. Not counted as completed.</span>
+          </div>
+          <p className="mb-2 flex items-start gap-1.5 text-[11px] text-muted"><Info size={12} className="mt-0.5 shrink-0" /> {NOT_VERIFIED_NOTE}</p>
+          {renderNotes(attention)}
+        </section>
+      )}
+
       {view === "week" ? (
         <div className="space-y-6">
-          {week.carriedOver.filter(passes).length > 0 && (
+          {showOpen && week.carriedOver.length > 0 && (
             <section aria-label="Overdue from earlier weeks" className="rounded-3xl border border-blush-mid bg-blush/30 p-4">
               <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-blush-deep"><AlarmClock size={15} /> Overdue from earlier weeks</h2>
-              {renderNotes(week.carriedOver.filter(passes))}
+              {renderNotes(week.carriedOver)}
             </section>
           )}
-          {week.days.map((d, i) => {
-            const items = d.items.filter(passes);
-            return (
-              <section key={i} id={`day-${i}`} aria-label={d.date.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })} className="scroll-mt-24">
-                <div className="mb-2 flex items-center gap-2 border-b border-line/80 pb-1.5">
-                  <h2 className="font-display text-lg font-semibold">{d.date.toLocaleDateString("en-US", { weekday: "long" })}</h2>
-                  <span className="text-sm text-muted">{d.date.toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
-                  {d.isToday && <Badge tone="lavender">Today</Badge>}
-                  <span className="ml-auto text-[11px] text-muted">{items.length ? `${items.filter((a) => a.completed).length}/${items.length} done` : ""}</span>
-                </div>
-                {items.length ? renderNotes(items) : <p className="py-1 text-xs text-muted">No deadlines{filter !== "all" ? " matching this filter" : ""}.</p>}
-              </section>
-            );
-          })}
+          {/* Only weekdays with unfinished work are shown. Completed notes live once, at the very bottom. */}
+          {showOpen && visibleDays(week).map((d) => (
+            <section key={d.index} id={`day-${d.index}`} aria-label={d.date.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })} className="scroll-mt-24">
+              <div className="mb-2 flex items-baseline gap-2">
+                <h2 className="font-display text-lg font-semibold">{d.date.toLocaleDateString("en-US", { weekday: "long" })}</h2>
+                <span className="text-sm text-muted">{d.date.toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                {d.isToday && <Badge tone="lavender">Today</Badge>}
+              </div>
+              {renderNotes(d.items)}
+            </section>
+          ))}
+          {showOpen && !hasOpenWork(week) && (
+            <div className="flex items-center gap-3 rounded-3xl border border-sage-mid bg-sage/50 px-5 py-4">
+              <span className="text-2xl" aria-hidden>{week.completed.length ? "🎉" : "🌿"}</span>
+              <div>
+                <p className="font-display text-lg font-semibold">{week.completed.length ? "All caught up this week" : "Nothing due this week"}</p>
+                <p className="text-xs text-muted">{week.completed.length ? `Every assignment is done. Your completed notes are below.` : "Enjoy the breathing room, or get ahead on next week."}</p>
+              </div>
+            </div>
+          )}
+          {showDone && completedSection(week.completed, "this week")}
+          {!showOpen && week.completed.length === 0 && <p className="text-center text-sm text-muted">No completed assignments this week yet.</p>}
         </div>
       ) : (
-        <>
-          <div className="grid gap-6 pt-2 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-            <AnimatePresence mode="popLayout">
-              {visible.map((a, i) => (
-                <StickyNote key={a.id} a={a} i={i} now={now} onToggle={() => handleToggle(a)} onEdit={() => editNote(a)} onDelete={() => removeNote(a)} />
-              ))}
-            </AnimatePresence>
-            <motion.button layout onClick={openNew}
-              className="flex min-h-[230px] flex-col items-center justify-center gap-2 rounded-[1.25rem] border-2 border-dashed border-line text-muted transition hover:border-lavender-deep hover:bg-lavender/40 hover:text-lavender-deep">
-              <Plus size={28} />
-              <span className="text-sm font-semibold">New sticky note</span>
-            </motion.button>
-          </div>
-          {visible.length === 0 && <p className="mt-4 text-center text-sm text-muted">No assignments match this filter.</p>}
-        </>
+        <div className="space-y-6">
+          {showOpen && (
+            <div className="grid gap-6 pt-2 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+              <AnimatePresence mode="popLayout">
+                {allTasks.open.map((a, i) => (
+                  <StickyNote key={a.id} a={a} i={i} now={now} onToggle={() => handleToggle(a)} onEdit={() => editNote(a)} onDelete={() => removeNote(a)} onSubmission={(st) => changeSubmission(a, st)} onEmail={() => emailProfessor(a)} />
+                ))}
+              </AnimatePresence>
+              <motion.button layout onClick={openNew}
+                className="flex min-h-[230px] flex-col items-center justify-center gap-2 rounded-[1.25rem] border-2 border-dashed border-line text-muted transition hover:border-lavender-deep hover:bg-lavender/40 hover:text-lavender-deep">
+                <Plus size={28} />
+                <span className="text-sm font-semibold">New sticky note</span>
+              </motion.button>
+            </div>
+          )}
+          {showDone && completedSection(allTasks.completed, "in total")}
+          {!showOpen && allTasks.completed.length === 0 && <p className="text-center text-sm text-muted">No completed assignments yet.</p>}
+        </div>
       )}
 
       {/* Form modal */}

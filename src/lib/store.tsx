@@ -9,6 +9,7 @@ import {
 } from "./demo-data";
 import { setApplicationStatus, toggleSavedList } from "./career-state";
 import type { PlanMap } from "./graduation";
+import { setSubmissionStatus, type SubmissionStatus } from "./submission";
 import type {
   AppNotification,
   ApplicationStatus,
@@ -55,6 +56,7 @@ interface Ctx extends CampusState {
   updateAssignment: (id: string, patch: Partial<Assignment>) => void;
   deleteAssignment: (id: string) => void;
   toggleComplete: (id: string) => boolean; // returns new completed value
+  setSubmission: (id: string, status: SubmissionStatus) => void;
   setCourseTerm: (courseId: string, termId: string | undefined) => void;
   applyPlan: (plan: PlanMap) => void;
   setCareer: (patch: Partial<CareerProfile>) => void;
@@ -131,6 +133,7 @@ export function CampusProvider({ children }: { children: React.ReactNode }) {
         }));
         return next;
       },
+      setSubmission: (id, status) => patch((s) => ({ assignments: setSubmissionStatus(s.assignments, id, status) })),
       setCourseTerm: (courseId, termId) => patch((s) => ({ plan: { ...s.plan, [courseId]: termId } })),
       applyPlan: (plan) => patch(() => ({ plan: { ...plan } })),
       setCareer: (p) => patch((s) => ({ career: { ...s.career, ...p } })),
